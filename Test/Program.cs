@@ -1,5 +1,4 @@
-﻿using Compiler.Reader;
-using Compiler.Tokenizador;
+﻿using Compiler.Tokenizador;
 
 namespace Test;
 

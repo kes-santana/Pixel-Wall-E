@@ -7,18 +7,18 @@ public static class Tokenizador
     #region Patterns
 
     public static readonly string id = @"[a-zA-Z][a-zA-Z0-9\_]*";
-    public static readonly string label = $"{id}\n";
-    public static readonly string num = @"\d+,\d+|\d+";
+    public static readonly string label = $"{id}\r?\n";
+    public static readonly string num = @"\d+";
     public static readonly string str = @"""[^""]*""";
     public static readonly string otherOp = @"\*\*";
     public static readonly string comp = @"[<>=\!]=";
+    public static readonly string assign = @"<-";
     public static readonly string op = @"[<>=%+\-\*/&\|\!\(\),]";
-
     #endregion
 
     public static string GetAllPatterns()
     {
-        return string.Join('|', @"[\t ]+", label, id, str, num, otherOp, comp, op, "\n");
+        return string.Join('|', @"[\t ]+", label, id, str, num, otherOp, assign, comp, op, "\r?\n");
     }
 
     public static Token[] Tokenizar(string code)
@@ -60,12 +60,13 @@ public static class Tokenizador
                 return TokenType.Module;
             case "**":
                 return TokenType.Exp;
-            case "_":
-                return TokenType.Underscore;
-            case "&":
+            case "<-":
+                return TokenType.Assign;
+            case "&&":
                 return TokenType.And;
             case "||":
                 return TokenType.Or;
+            case "\r\n":
             case "\n":
                 return TokenType.EndLine;
         }

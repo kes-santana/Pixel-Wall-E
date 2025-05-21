@@ -13,8 +13,8 @@ public enum TokenType
     Boolean,
     Label,
     String,
-    Underscore,
     And,
     Or,
     EndLine,
+    Assign,
 }
