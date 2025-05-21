@@ -1,4 +1,4 @@
-enum BinaryAritmeticTypes
+public enum BinaryAritmeticTypes
 {
     Sum,
     Resta,
@@ -9,11 +9,11 @@ enum BinaryAritmeticTypes
 
 }
 
-enum BinaryBooleanTypes
+public enum BinaryBooleanTypes
 {
-And,
-Or,
-Equal,
-Diferent,
+    And,
+    Or,
+    Equal,
+    Diferent,
 
 }
