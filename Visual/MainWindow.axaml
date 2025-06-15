@@ -2,9 +2,195 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:AvaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+        xmlns:local="clr-namespace:Visual;assembly=Visual;"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="Visual.MainWindow"
-        Title="Visual">
-    <TextBlock>Hola
-        Mundo </TextBlock>
+        Title="Pixel-Wall-E"
+        ExtendClientAreaToDecorationsHint="True"
+        WindowState="Normal"
+        >
+        <!-- SystemDecorations="Full"
+        ExtendClientAreaChromeHints="NoChrome"
+         -->
+
+    <DockPanel>
+        <Grid x:Name="StartWindow" IsVisible="True">
+            <Grid.ColumnDefinitions>
+				<ColumnDefinition Width="2*"/>
+				<ColumnDefinition Width="4*"/>
+				<ColumnDefinition Width="*"/>
+				<ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+			<Grid.RowDefinitions>
+				<RowDefinition Height="*"/>
+                <RowDefinition Height="*"/>
+				<RowDefinition Height="4*"/>
+				<RowDefinition Height="*"/>
+			</Grid.RowDefinitions>
+
+            <!-- Imagen de fondo -->
+            <Image Source="C:/Users/Kevin Emilio/Programación/Proyectos/Pixel-Wall-E/Visual/Assets/Walle-Inicio.png"
+                   Stretch="UniformToFill"
+				   Grid.ColumnSpan="4" Grid.RowSpan="4"/>
+      
+           <!-- Texto en el centro --> 
+            <TextBlock Text="Wellcome to Pixel Wall-E"
+                       Foreground="Blue"
+                       FontSize="32"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Bottom"
+					   Grid.Column="1" Grid.Row="1"/>
+            <Button
+                x:Name="Start"
+                Content="Start"
+                Click="OpenWorkWindow"
+                Foreground="RoyalBlue"
+                Background="Transparent"
+                FontSize="30"
+                FontFamily="Courier New"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+				Grid.Row="2"
+                Grid.Column="1"/>   
+       
+        </Grid> 
+
+          <!-- <Border BorderBrush="MidnightBlue"
+                BorderThickness="3"> -->
+
+        <Grid x:Name="WorkWindow"  IsVisible="False">
+
+           <Grid.ColumnDefinitions> 
+             <ColumnDefinition Width="*"/>
+             <ColumnDefinition Width="2*"/>
+           
+           </Grid.ColumnDefinitions>
+
+          <Grid.RowDefinitions>
+			<RowDefinition Height="*"/>
+			<RowDefinition Height="4*"/>
+                        
+		  </Grid.RowDefinitions>
+
+            <Border BorderBrush="MidnightBlue" BorderThickness="1"  Grid.ColumnSpan="2">
+                <Grid x:Name="SettingsBar">
+                    <Rectangle Fill="LightGray" Grid.ColumnSpan="5" Grid.RowSpan="2"/>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="0.5*"/>
+                        <ColumnDefinition Width="0.5*"/>
+                        <ColumnDefinition Width="0.3*"/>
+                        <ColumnDefinition Width="0.2*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <Button Content="Generate Board" Click="GenerateBoard" Height="35" Margin="3"
+                            HorizontalContentAlignment="Center" 
+                            VerticalContentAlignment="Center"/>
+                  
+                    <Button Content="Play" Grid.Row="1" Width="125" Margin="3"
+                            HorizontalContentAlignment="Center" 
+                            VerticalContentAlignment="Center"
+                            Click="PlayButton_Click"/>
+                    
+                    <Button Content="Save" Width="120" Grid.Column="1" Margin="3"
+                            HorizontalContentAlignment="Center" 
+                            VerticalContentAlignment="Center"/>
+                    
+                    <Button Content="Charge Doc" Width="120" Grid.Row="1" Grid.Column="1"
+                            HorizontalContentAlignment="Center" Margin="3"
+                            VerticalContentAlignment="Center"/>
+                    
+                    <TextBlock Text="Dimension:"  Grid.Column="2"  HorizontalAlignment="Left"
+                       VerticalAlignment="Center"/>
+                    <TextBox x:Name="MyDimension" Name="Dimension" Grid.Column="3" Width="30" Height="30" Text=" Dim" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Draw your dreams!"  Grid.Column="4" Grid.RowSpan="2"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="25" 
+                               Foreground="Blue" FontFamily="Courier New"/>
+                </Grid>
+            </Border>
+            <!-- <Border
+                BorderBrush="MidnightBlue"
+                BorderThickness="5"
+                Grid.ColumnSpan="2">
+                <Rectangle Fill="LightGray"/>
+                  <Grid x:Name="Settings Bar">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBox Name="NumberRows" Grid.Column="1" />
+                    <TextBox Name="NumberCols" Grid.Column="1" Grid.Row="1"/>
+                    <Button Content="Generar Tablero"/>
+                  </Grid>
+            </Border> -->
+              <!--rectangulo del editor de texto -->      
+            
+            <Border 
+                BorderBrush="MidnightBlue"
+                BorderThickness="1"
+                Grid.Row="1"
+                Grid.RowSpan="2">
+                <Rectangle Fill="LightSkyBlue" />
+            </Border>
+              
+            <Grid x:Name="MyCanvas" Grid.Column="1"
+            Grid.ColumnSpan="2"
+                Grid.Row="1"
+                Grid.RowSpan="2"
+                />
+
+            <Grid x:Name="WalleCanvas" Grid.Column="1"
+                Grid.ColumnSpan="2"
+                Grid.Row="1"
+                Grid.RowSpan="2"
+                Panel.ZIndex="2">
+            </Grid>
+
+            <Border 
+                BorderBrush="Blue"
+                BorderThickness="1"
+                Grid.Column="1"
+                Grid.ColumnSpan="2"
+                Grid.Row="1"
+                Grid.RowSpan="2">
+            </Border>
+           
+            
+            <AvaloniaEdit:TextEditor x:Name="TextEditor" Grid.Row="1" Grid.RowSpan="2"
+                           Text="Hello AvaloniaEdit!"
+                           ShowLineNumbers="True"
+                           LineNumbersForeground="Blue"
+                           FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                           TextChanged="TextEditor_TextChanged"/>
+
+            <!-- <ScrollViewer  Grid.Row="1" Grid.RowSpan="2"
+                    VerticalScrollBarVisibility="Visible"
+                    HorizontalScrollBarVisibility="Visible">
+               <TextBox
+                Grid.Row="1"
+                Grid.RowSpan="2"
+                BorderThickness="5"
+                AcceptsReturn="True"
+                AcceptsTab="True"            
+             />
+                </ScrollViewer> -->
+                
+             
+            <!-- </Border> -->
+        </Grid>
+    </DockPanel> 
 </Window>
