@@ -2,26 +2,29 @@ using System.Text.RegularExpressions;
 
 namespace Compiler.Tokenizador;
 
-public static class Tokenizador
+public class Tokenizador
 {
+    // public List<Exception> tokenException = [];
     #region Patterns
 
-    public static readonly string id = @"[a-zA-Z][a-zA-Z0-9\_]*";
-    public static readonly string label = $"{id}\r?\n";
-    public static readonly string num = @"\d+";
-    public static readonly string str = @"""[^""]*""";
-    public static readonly string otherOp = @"\*\*";
-    public static readonly string comp = @"[<>=\!]=";
-    public static readonly string assign = @"<-";
-    public static readonly string op = @"[<>=%+\-\*/&\|\!\(\),]";
+    public static readonly string id = @"[a-zA-Z][a-zA-Z0-9_]*";
+    public readonly string label = $"{id}\r?\n";
+    public readonly string num = @"\d+";
+    public readonly string str = @"""[^""]*""";
+    public readonly string otherOp = @"\*\*";
+    public readonly string comp = @"[<>=\!]=";
+    public readonly string assign = @"<-";
+    public readonly string op = @"[<>=%+\-\*/&\|\!\(\)\[\]\,]";
+    // public readonly string other = @"^.{1}";
     #endregion
 
-    public static string GetAllPatterns()
+    public string GetAllPatterns()
     {
-        return string.Join('|', @"[\t ]+", label, id, str, num, otherOp, assign, comp, op, "\r?\n");
+
+        return string.Join('|', @"[\t ]+", label, id, str, num, otherOp, assign, comp, op, "\r?\n", ".");
     }
 
-    public static Token[] Tokenizar(string code)
+    public Token[] Tokenizar(string code)
     {
         var pattern = GetAllPatterns();
         MatchCollection matches = Regex.Matches(code, pattern);
@@ -33,6 +36,12 @@ public static class Tokenizador
         {
             var value = match.Value;
             var type = GetTokenType(value);
+            // if (type == TokenType.Error)
+            // {
+            //     col += match.Length;
+            //     tokenException.Add(new Exception("Caracter no valido"));
+            //     continue;
+            // }
             tokens.Add(new(value, type, line, col));
             col += match.Length;
             if (type != TokenType.EndLine)
@@ -41,13 +50,16 @@ public static class Tokenizador
             col = 0;
         }
 
+        tokens.Add(new Token("\n", TokenType.EndLine));
         return [.. tokens];
     }
 
-    private static TokenType GetTokenType(string value)
+    private TokenType GetTokenType(string value)
     {
         switch (value)
         {
+            case "GoTo":
+                return TokenType.GoTo;
             case "+":
                 return TokenType.Suma;
             case "-":
@@ -66,6 +78,28 @@ public static class Tokenizador
                 return TokenType.And;
             case "||":
                 return TokenType.Or;
+            case ">":
+                return TokenType.Major;
+            case "<":
+                return TokenType.Minor;
+            case ">=":
+                return TokenType.MajorEqual;
+            case "<=":
+                return TokenType.MinorEqual;
+            case "==":
+                return TokenType.Equal;
+            case "!=":
+                return TokenType.Diferent;
+            case "(":
+                return TokenType.ParentesisAbierto;
+            case ")":
+                return TokenType.ParentesisCerrado;
+            case "[":
+                return TokenType.CorcheteAbierto;
+            case "]":
+                return TokenType.CorcheteCerrado;
+            case ",":
+                return TokenType.Coma;
             case "\r\n":
             case "\n":
                 return TokenType.EndLine;
@@ -79,6 +113,10 @@ public static class Tokenizador
             return TokenType.Label;
         if (value[^1] == '"' && value[0] == '"')
             return TokenType.String;
+
+        // if (!char.IsLetterOrDigit(value[0]))
+        //     return TokenType.Error;
+        
         return TokenType.Identificador;
     }
 }
