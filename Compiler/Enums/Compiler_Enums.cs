@@ -1,19 +1,17 @@
-public enum BinaryAritmeticTypes
+public enum BinaryTypes
 {
     Sum,
     Resta,
     Mult,
     Div,
     Potencia,
-    Modulo
-
-}
-
-public enum BinaryBooleanTypes
-{
+    Modulo,
     And,
     Or,
+    Major,
+    Minor,
+    MajorEqual,
+    MinorEqual,
     Equal,
     Diferent,
-
 }

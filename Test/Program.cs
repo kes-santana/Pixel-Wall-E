@@ -20,6 +20,7 @@ public class Program
         if (reader.EndOfStream)
             return;
         string code = reader.ReadToEnd()!;
-        Token[] tokens = Tokenizador.Tokenizar(code);
+        var tokenizador = new Tokenizador();
+        Token[] tokens = tokenizador.Tokenizar(code);
     }
 }

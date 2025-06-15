@@ -12,6 +12,6 @@ public class Method(string name, IExpression<object>[] @params) : IInstruction
         object[] values = new object[Params.Length];
         for (int i = 0; i < values.Length; i++)
             values[i] = Params[i].Excute(context);
-        // return context.Actions[Name](values);
+        context.ContextAction.CallAction(Name, values);
     }
 }

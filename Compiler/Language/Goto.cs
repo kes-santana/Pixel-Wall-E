@@ -9,8 +9,10 @@ public class Goto(string target, IExpression<bool> cond) : IInstruction
 
     public void Excute(Context context)
     {
-        if (!Cond.Excute(context))
+        var cond = Cond.Excute(context);
+        if (!cond)
             return;
-        // hacer algo
+        context.TargetLabel = Target;
+        context.Jump = cond;
     }
 }

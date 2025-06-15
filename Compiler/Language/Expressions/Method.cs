@@ -12,8 +12,7 @@ public class Method<T>(string name, IExpression<object>[] @params) : IExpression
         object[] values = new object[Params.Length];
         for (int i = 0; i < values.Length; i++)
             values[i] = Params[i].Excute(context);
-        return default;
-        // return context.Functions[Name](values);
+        return (T)context.ContextFunction.CallFunction(Name, values);
     }
 
     void IInstruction.Excute(Context context) => Excute(context);
