@@ -10,6 +10,7 @@ using Compiler.Tokenizador;
 using System;
 using System.IO;
 using Avalonia.Platform.Storage;
+using Avalonia.Platform;
 
 namespace Visual;
 
@@ -168,8 +169,19 @@ public partial class MainWindow : Window, ICanvasInfo
 
     public void CreateWalle()
     {
+        Bitmap? bitmap = null;
+        string assembyName = System.Reflection.Assembly.GetExecutingAssembly().GetName().Name ?? "PIXEL-WALL-E";
+        string uriString = $"avares://{assembyName}/Assets/Wall_E.png";
+        Uri iconUri = new Uri(uriString);
+        if (AssetLoader.Exists(iconUri))
+        {
+            using (var stream = AssetLoader.Open(iconUri))
+            {
+                 bitmap = new Bitmap(stream);
+            }
+        }
         RemoveWalle();
-        var bitmap = new Bitmap(@"C:/Users/Kevin Emilio/Programación/Proyectos/Pixel-Wall-E/Visual/Assets/Wall_E.png");
+       
         var wallPicture = new ImageBrush
         {
             Source = bitmap,
@@ -306,28 +318,28 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         {
             case "Red":
                 Brush.Color = color;
-                break;
+                return;
             case "Blue":
                 Brush.Color = color;
-                break;
+                return;
             case "Green":
                 Brush.Color = color;
-                break;
+                return;
             case "Yellow":
                 Brush.Color = color;
-                break;
+                return;
             case "Orange":
                 Brush.Color = color;
-                break;
+                return;
             case "Purple":
                 Brush.Color = color;
-                break;
+                return;
             case "Black":
                 Brush.Color = color;
-                break;
+                return;
             case "White" or "Transparent":
                 Brush.Color = "White";
-                break;
+                return;
         }
     }
     public void Size(int k)

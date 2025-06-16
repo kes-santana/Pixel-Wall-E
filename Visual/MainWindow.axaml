@@ -9,6 +9,7 @@
         Title="Pixel-Wall-E"
         ExtendClientAreaToDecorationsHint="True"
         WindowState="Normal"
+        Icon="Assets/Icon.png"
         >
         <!-- SystemDecorations="Full"
         ExtendClientAreaChromeHints="NoChrome"
@@ -31,7 +32,7 @@
 			</Grid.RowDefinitions>
 
             <!-- Imagen de fondo -->
-            <Image Source="C:/Users/Kevin Emilio/Programación/Proyectos/Pixel-Wall-E/Visual/Assets/Walle-Inicio.png"
+            <Image Source="Assets/Walle-Inicio.png"
                    Stretch="UniformToFill"
 				   Grid.ColumnSpan="4" Grid.RowSpan="4"/>
       
