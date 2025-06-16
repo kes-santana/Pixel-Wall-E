@@ -8,7 +8,8 @@ using Compiler;
 using Compiler.Parser;
 using Compiler.Tokenizador;
 using System;
-
+using System.IO;
+using Avalonia.Platform.Storage;
 
 namespace Visual;
 
@@ -20,7 +21,6 @@ public partial class MainWindow : Window, ICanvasInfo
         get => dimensions;
         set => dimensions = value >= 0 ? value : throw new Exception();
     }
-
     public Border Walle { get; set; } = new();
     public Dictionary<(int, int), Border> MyBorders { get; } = [];
 
@@ -33,7 +33,6 @@ public partial class MainWindow : Window, ICanvasInfo
         functions = new FunctionMethods(this);
         actions = new ActionMethods(this);
     }
-
     public void OpenWorkWindow(object sender, RoutedEventArgs e)
     {
         StartWindow.IsVisible = false;
@@ -83,7 +82,6 @@ public partial class MainWindow : Window, ICanvasInfo
         }
 
     }
-
     public void TextEditor_TextChanged(object sender, EventArgs e)
     {
         // TODO Probarlo bien con todas las funciones del pdf y mostrar errores parser y tokenizador
@@ -91,11 +89,12 @@ public partial class MainWindow : Window, ICanvasInfo
         var context = new Context(functions, actions);
         var tokenizador = new Tokenizador();
 
-        var code = TextEditor.Text;
+        var code = textEditor.Text;
         var tokens = tokenizador.Tokenizar(code);
         var ast = parser.Parse(tokens);    //es ast pero es un bloque
-        // Añadir lista de errores en el visual
 
+
+        // Añadir lista de errores en el visual
         // StringBuilder sb = new();
         // foreach (var item in parser.ParserErrors)
         // {
@@ -103,27 +102,98 @@ public partial class MainWindow : Window, ICanvasInfo
         // }
         // TODO ErrorArea.Text = sb.ToString();
     }
-
     public void PlayButton_Click(object sender, RoutedEventArgs e)
     {
         var parser = new Parser();
         var context = new Context(functions, actions);
         var tokenizador = new Tokenizador(); //TODO: Convertir a no estatico
 
-        var code = TextEditor.Text;
+        var code = textEditor.Text;
         var tokens = tokenizador.Tokenizar(code);
         var ast = parser.Parse(tokens);    //es ast pero es un bloque  
         ast.Excute(context);
     }
+    private async void SaveDocument(object? sender, RoutedEventArgs e)
+    {
+        var savePicker = new FilePickerSaveOptions
+        {
+            Title = "Save file",
+            SuggestedFileName = "nuevo_archivo.pw",
+            FileTypeChoices = new List<FilePickerFileType>
+            {
+                new("Archivo protegido")
+                {
+                    Patterns = new[] { "*.pw" }
+                }
+            }
+        };
 
+        var file = await StorageProvider.SaveFilePickerAsync(savePicker);
+
+        if (file != null)
+        {
+            var stream = await file.OpenWriteAsync();
+            var writer = new StreamWriter(stream);
+            await writer.WriteAsync(textEditor.Text);
+        }
+    }
+    private async void ChargeDocument(object? sender, RoutedEventArgs e)
+    {
+        var openPicker = new FilePickerOpenOptions
+        {
+            Title = "Open file",
+            AllowMultiple = false,
+            FileTypeFilter = new List<FilePickerFileType>
+            {
+                new("Archivo protegido")
+                {
+                    Patterns = new[] { "*.pw" }
+                }
+            }
+        };
+
+        var files = await StorageProvider.OpenFilePickerAsync(openPicker);
+
+        if (files.Count > 0)
+        {
+            var file = files[0];
+
+            var stream = await file.OpenReadAsync();
+            var reader = new StreamReader(stream);
+            string contenido = await reader.ReadToEndAsync();
+
+            textEditor.Text = contenido;
+        }
+    }
+
+    public void CreateWalle()
+    {
+        RemoveWalle();
+        var bitmap = new Bitmap(@"C:/Users/Kevin Emilio/Programación/Proyectos/Pixel-Wall-E/Visual/Assets/Wall_E.png");
+        var wallPicture = new ImageBrush
+        {
+            Source = bitmap,
+            Stretch = Stretch.UniformToFill
+        };
+        Walle = new Border
+        {
+            Background = wallPicture,
+            BorderThickness = new Thickness(1),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
+            ZIndex = 3,
+        };
+        WalleCanvas.Children.Add(Walle);
+    }
+    public void RemoveWalle()
+    {
+        if (WalleCanvas.Children.Contains(Walle))
+        {
+            WalleCanvas.Children.Remove(Walle);
+        }
+    }
     public void SetWalle(int x, int y)
     {
-        // if (WalleCanvas.Children.Contains(Walle))
-        // {
-        //     WalleCanvas.Children.Remove(Walle);
-        // }
-        if (Walle.Parent is Panel parent)
-            parent.Children.Remove(Walle);
 
         if (x >= Dimensions)
             Grid.SetColumn(Walle, Dimensions - 1);
@@ -135,8 +205,12 @@ public partial class MainWindow : Window, ICanvasInfo
             Grid.SetRow(Walle, Dimensions - 1);
         if (y < 0)
             Grid.SetRow(Walle, 0);
-        else { Grid.SetRow(Walle, 0); }
-        WalleCanvas.Children.Add(Walle);
+        else { Grid.SetRow(Walle, y); }
+
+        // if (Walle.Parent is Panel parent)
+        //     parent.Children.Remove(Walle);
+        // WalleCanvas.Children.Add(Walle);
+
         // MyCanvas.Children.Add(Walle); iba aqui pero lo quite porque sino cuando seteara a walle 
         // con este metodo iba a crear otro border
     }
@@ -147,23 +221,16 @@ public interface ICanvasInfo
     Border Walle { get; set; }
     int Dimensions { get; }
     Dictionary<(int, int), Border> MyBorders { get; }
+    void CreateWalle();
+    void RemoveWalle();
     void SetWalle(int x, int y);
 }
-
 public class FunctionMethods(ICanvasInfo info) : IContextFunction
 {
     private readonly ICanvasInfo _info = info;
 
-    public int GetActualY()
-    {
-        int fila = Grid.GetRow(_info.Walle);
-        return fila;
-    }
-    public int GetActualX()
-    {
-        int columna = Grid.GetColumn(_info.Walle);
-        return columna;
-    }
+    public int GetActualY() => Grid.GetRow(_info.Walle);
+    public int GetActualX() => Grid.GetColumn(_info.Walle);
     public int GetCanvasSize() => _info.Dimensions;
     public int GetColorCount(string color, int x1, int y1, int x2, int y2)
     {
@@ -214,29 +281,13 @@ public class FunctionMethods(ICanvasInfo info) : IContextFunction
     };
 
 }
-
 public class ActionMethods(ICanvasInfo info) : IContextAction
 {
     private readonly ICanvasInfo _info = info;
 
     public void Spawn(int x, int y)
     {
-        // el parametro x son las rows 
-        // el parametro y son las cols
-        // en general es (y,x)---(col,row)
-        {
-            var bitmap = new Bitmap(@"C:/Users/Kevin Emilio/Programación/Proyectos/Pixel-Wall-E/Visual/Assets/Wall_E.png");
-            var wallPicture = new ImageBrush
-            {
-                Source = bitmap,
-                Stretch = Stretch.UniformToFill
-            };
-            _info.Walle.Background = Brushes.Blue;
-            _info.Walle.BorderThickness = new Thickness(1);
-            _info.Walle.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
-            _info.Walle.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom;
-            //_info.Walle.Background = wallPicture;
-        }
+        _info.CreateWalle();
         _info.SetWalle(x, y);
 
         // Walle = new Border
@@ -306,8 +357,9 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         {
             int MyFilas = fila + dirY * i;
             int MyColumnas = columna + dirX * i;
-            Grid.SetRow(_info.Walle, MyFilas);
-            Grid.SetColumn(_info.Walle, MyColumnas);
+            _info.SetWalle(MyColumnas, MyFilas);
+            // Grid.SetRow(_info.Walle, MyFilas);
+            // Grid.SetColumn(_info.Walle, MyColumnas);
             var myColorBrush = new SolidColorBrush(Color.Parse(Brush.Color));
             _info.MyBorders[(MyFilas, MyColumnas)].Background = myColorBrush;
             if (i == 0)
@@ -319,7 +371,7 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
                     continue;
                 }
             }
-            Paint(dirX, dirY, Brush.Size, myColorBrush, i + 1);
+            Paint(dirX, dirY, Brush.Size, myColorBrush, i + 1, null);
             i++;
         }
         // por si no funciona el metodo sin especificar el grid
@@ -330,13 +382,28 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         // Console.WriteLine($"Está dentro de miGrid en fila {fila}, columna {columna}");
         // }
     }
-    public void Paint(int dirX, int dirY, int size, SolidColorBrush myColorBrush, int myCount)
+    public void Paint(int dirX, int dirY, int size, SolidColorBrush myColorBrush, int? myCount, string? form)
     {
         int col = Grid.GetColumn(_info.Walle);
         int row = Grid.GetRow(_info.Walle);
+        int aumento = size / 2;
+
+        //para circulos
+        if (form is not null)
+        {
+            for (int i = col - aumento; i <= col + aumento; i++)
+            {
+                for (int j = row - aumento; j <= row + aumento; j++)
+                {
+                    _info.MyBorders[(i, j)].Background = myColorBrush;
+                }
+            }
+        }
+
+        //para lineas hacia los lados y arriba abajo
         if (dirX == 1 && dirY == 0 || dirX == -1 && dirY == 0 || dirX == 0 && dirY == 1 || dirX == 0 && dirY == -1)
         {
-            //para lineas hacia los lados y arriba abajo 
+
             int count = 1;
             while (count <= size / 2)
             {
@@ -379,11 +446,13 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         if (MyFilas < 0 || MyFilas > _info.Dimensions - 1 || MyColumnas < 0 ||
             MyColumnas > _info.Dimensions - 1)
             return;
-        Grid.SetRow(_info.Walle, MyFilas);
-        Grid.SetColumn(_info.Walle, MyColumnas);
+        _info.SetWalle(MyColumnas, MyFilas);
+        // Grid.SetRow(_info.Walle, MyFilas);
+        // Grid.SetColumn(_info.Walle, MyColumnas);
         DrawCircle(MyColumnas, MyFilas, radius, myColorBrush);
-        Grid.SetRow(_info.Walle, MyFilas);
-        Grid.SetColumn(_info.Walle, MyColumnas);
+        _info.SetWalle(MyColumnas, MyFilas);
+        // Grid.SetRow(_info.Walle, MyFilas);
+        // Grid.SetColumn(_info.Walle, MyColumnas);
     }
     public void DrawCircle(int centerX, int centerY, int radius, SolidColorBrush myColorBrush)
     {
@@ -409,37 +478,61 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
     }
     public void PlotCircleCell(int cx, int cy, int x, int y, SolidColorBrush myColorBrush)
     {
-        Grid.SetColumn(_info.Walle, cx + x);
-        Grid.SetRow(_info.Walle, cy + y);
+        _info.SetWalle(cx + x, cy + y);
+        // Grid.SetColumn(_info.Walle, cx + x);
+        // Grid.SetRow(_info.Walle, cy + y);
         _info.MyBorders[(cx + x, cy + y)].Background = myColorBrush;
+        if (Brush.Size > 1)
+            Paint(cx + x, cy + y, Brush.Size, myColorBrush, null, "circle");
 
-        Grid.SetColumn(_info.Walle, cx - x);
-        Grid.SetRow(_info.Walle, cy + y);
+        _info.SetWalle(cx - x, cy + y);
+        // Grid.SetColumn(_info.Walle, cx - x);
+        // Grid.SetRow(_info.Walle, cy + y);
         _info.MyBorders[(cx - x, cy + y)].Background = myColorBrush;
+        if (Brush.Size > 1)
+            Paint(cx - x, cy + y, Brush.Size, myColorBrush, null, "circle");
 
-        Grid.SetColumn(_info.Walle, cx + x);
-        Grid.SetRow(_info.Walle, cy - y);
+        _info.SetWalle(cx + x, cy - y);
+        // Grid.SetColumn(_info.Walle, cx + x);
+        // Grid.SetRow(_info.Walle, cy - y);
         _info.MyBorders[(cx + x, cy - y)].Background = myColorBrush;
+        if (Brush.Size > 1)
+            Paint(cx + x, cy - y, Brush.Size, myColorBrush, null, "circle");
 
-        Grid.SetColumn(_info.Walle, cx - x);
-        Grid.SetRow(_info.Walle, cy - y);
+        _info.SetWalle(cx - x, cy - y);
+        // Grid.SetColumn(_info.Walle, cx - x);
+        // Grid.SetRow(_info.Walle, cy - y);
         _info.MyBorders[(cx - x, cy - y)].Background = myColorBrush;
+        if (Brush.Size > 1)
+            Paint(cx - x, cy - y, Brush.Size, myColorBrush, null, "circle");
 
-        Grid.SetColumn(_info.Walle, cx + y);
-        Grid.SetRow(_info.Walle, cy + x);
+        _info.SetWalle(cx + y, cy + x);
+        // Grid.SetColumn(_info.Walle, cx + y);
+        // Grid.SetRow(_info.Walle, cy + x);
         _info.MyBorders[(cx + y, cy + x)].Background = myColorBrush;
+        if (Brush.Size > 1)
+            Paint(cx + y, cy + x, Brush.Size, myColorBrush, null, "circle");
 
-        Grid.SetColumn(_info.Walle, cx - y);
-        Grid.SetRow(_info.Walle, cy + x);
+        _info.SetWalle(cx - y, cy + x);
+        // Grid.SetColumn(_info.Walle, cx - y);
+        // Grid.SetRow(_info.Walle, cy + x);
         _info.MyBorders[(cx - y, cy + x)].Background = myColorBrush;
+        if (Brush.Size > 1)
+            Paint(cx - y, cy + x, Brush.Size, myColorBrush, null, "circle");
 
-        Grid.SetColumn(_info.Walle, cx + y);
-        Grid.SetRow(_info.Walle, cy - x);
+        _info.SetWalle(cx + y, cy - x);
+        // Grid.SetColumn(_info.Walle, cx + y);
+        // Grid.SetRow(_info.Walle, cy - x);
         _info.MyBorders[(cx + y, cy - x)].Background = myColorBrush;
+        if (Brush.Size > 1)
+            Paint(cx + y, cy - x, Brush.Size, myColorBrush, null, "circle");
 
-        Grid.SetColumn(_info.Walle, cx - y);
-        Grid.SetRow(_info.Walle, cy - x);
+        _info.SetWalle(cx - y, cy - x);
+        // Grid.SetColumn(_info.Walle, cx - y);
+        // Grid.SetRow(_info.Walle, cy - x);
         _info.MyBorders[(cx - y, cy - x)].Background = myColorBrush;
+        if (Brush.Size > 1)
+            Paint(cx - y, cy - x, Brush.Size, myColorBrush, null, "circle");
 
     }
     public void DrawRectangle(int dirX, int dirY, int distance, int width, int height)
@@ -509,8 +602,9 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
                 return;
             if (mask[nextY, nextX]) //TODO ver si es Walle Y-X o Next Y-X
                 return;
-            Grid.SetColumn(_info.Walle, nextX);
-            Grid.SetRow(_info.Walle, nextY);
+            _info.SetWalle(nextX, nextY);
+            // Grid.SetColumn(_info.Walle, nextX);
+            // Grid.SetRow(_info.Walle, nextY);
             Fill(mask, direction);
         }
     }

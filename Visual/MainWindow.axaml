@@ -101,11 +101,13 @@
                     
                     <Button Content="Save" Width="120" Grid.Column="1" Margin="3"
                             HorizontalContentAlignment="Center" 
-                            VerticalContentAlignment="Center"/>
+                            VerticalContentAlignment="Center"
+                            Click="SaveDocument"/>
                     
                     <Button Content="Charge Doc" Width="120" Grid.Row="1" Grid.Column="1"
                             HorizontalContentAlignment="Center" Margin="3"
-                            VerticalContentAlignment="Center"/>
+                            VerticalContentAlignment="Center"
+                            Click="ChargeDocument"/>
                     
                     <TextBlock Text="Dimension:"  Grid.Column="2"  HorizontalAlignment="Left"
                        VerticalAlignment="Center"/>
@@ -170,12 +172,12 @@
             </Border>
            
             
-            <AvaloniaEdit:TextEditor x:Name="TextEditor" Grid.Row="1" Grid.RowSpan="2"
-                           Text="Hello AvaloniaEdit!"
+            <AvaloniaEdit:TextEditor x:Name="textEditor" Grid.Row="1" Grid.RowSpan="2"
                            ShowLineNumbers="True"
                            LineNumbersForeground="Blue"
                            FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
                            TextChanged="TextEditor_TextChanged"/>
+
 
             <!-- <ScrollViewer  Grid.Row="1" Grid.RowSpan="2"
                     VerticalScrollBarVisibility="Visible"
