@@ -268,8 +268,8 @@ public class FunctionMethods(ICanvasInfo info) : IContextFunction
         }
         return count;
     }
-    public int IsBrushColor(string color) => Brush.Color == color ? 1 : 0;
-    public int IsBrushSize(int size) => Brush.Size == size ? 1 : 0;
+    public int IsBrushColor(string color) => Pincel.Color == color ? 1 : 0;
+    public int IsBrushSize(int size) => Pincel.Size == size ? 1 : 0;
     public int IsCanvasColor(string color, int vertical, int horizontal)
     {
         int fila = Grid.GetRow(_info.Walle) + horizontal;
@@ -316,29 +316,29 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
     {
         switch (color)
         {
-            case "Red":
-                Brush.Color = color;
+            case "\"Red\"":
+               Pincel.Color = "Red";
                 return;
-            case "Blue":
-                Brush.Color = color;
+            case "\"Blue\"":
+                Pincel.Color = "Blue";
                 return;
-            case "Green":
-                Brush.Color = color;
+            case "\"Green\"":
+                Pincel.Color = "Green";
                 return;
-            case "Yellow":
-                Brush.Color = color;
+            case "\"Yellow\"":
+                Pincel.Color = "Yellow";
                 return;
-            case "Orange":
-                Brush.Color = color;
+            case "\"Orange\"":
+                Pincel.Color = "Orange";
                 return;
-            case "Purple":
-                Brush.Color = color;
+            case "\"Purple\"":
+                Pincel.Color = "Purple";
                 return;
-            case "Black":
-                Brush.Color = color;
+            case "\"Black\"":
+                Pincel.Color = "Black";
                 return;
-            case "White" or "Transparent":
-                Brush.Color = "White";
+            case "\"White\"" or "\"Transparent\"":
+                Pincel.Color = "White";
                 return;
         }
     }
@@ -346,15 +346,15 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
     {
         if (k % 2 == 0)
         {
-            Brush.Size = k - 1;
+            Pincel.Size = k - 1;
             return;
         }
         if (k <= 0)
         {
-            Brush.Size = 1;
+            Pincel.Size = 1;
             return;
         }
-        else Brush.Size = k;
+        else Pincel.Size = k;
 
     }
     //    TODO hacer que pinte la linea usando los diferntes tamanos de brocha
@@ -372,7 +372,7 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
             _info.SetWalle(MyColumnas, MyFilas);
             // Grid.SetRow(_info.Walle, MyFilas);
             // Grid.SetColumn(_info.Walle, MyColumnas);
-            var myColorBrush = new SolidColorBrush(Color.Parse(Brush.Color));
+            var myColorBrush = new SolidColorBrush(Color.Parse(Pincel.Color));
             _info.MyBorders[(MyFilas, MyColumnas)].Background = myColorBrush;
             if (i == 0)
             {
@@ -383,7 +383,7 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
                     continue;
                 }
             }
-            Paint(dirX, dirY, Brush.Size, myColorBrush, i + 1, null);
+            Paint(dirX, dirY, Pincel.Size, myColorBrush, i + 1, null);
             i++;
         }
         // por si no funciona el metodo sin especificar el grid
@@ -427,7 +427,7 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         }
         //para lineas hacia las diagonales
         //para cuando distancia es menor que el size de la brocha
-        if (myCount < Brush.Size)
+        if (myCount < Pincel.Size)
         {
             for (int j = 1; j <= myCount - 1; j++)
             {
@@ -438,7 +438,7 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
             return;
         }
         //para cuando distancia es mayor o igual que el size de la brocha
-        for (int j = 1; j < Brush.Size - 1; j++)
+        for (int j = 1; j < Pincel.Size - 1; j++)
         {
             _info.MyBorders[(col - dirX * j, row)].Background = myColorBrush;
             _info.MyBorders[(col, row - dirY * j)].Background = myColorBrush;
@@ -451,7 +451,7 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         if (dirY != -1 && dirY != 0 && dirY != 1) return;
         int WalleY = Grid.GetRow(_info.Walle);
         int WalleX = Grid.GetColumn(_info.Walle);
-        var myColorBrush = new SolidColorBrush(Color.Parse(Brush.Color));
+        var myColorBrush = new SolidColorBrush(Color.Parse(Pincel.Color));
         // set walle psition
         int MyFilas = WalleY + dirY * radius;
         int MyColumnas = WalleX + dirX * radius;
@@ -494,57 +494,57 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         // Grid.SetColumn(_info.Walle, cx + x);
         // Grid.SetRow(_info.Walle, cy + y);
         _info.MyBorders[(cx + x, cy + y)].Background = myColorBrush;
-        if (Brush.Size > 1)
-            Paint(cx + x, cy + y, Brush.Size, myColorBrush, null, "circle");
+        if (Pincel.Size > 1)
+            Paint(cx + x, cy + y, Pincel.Size, myColorBrush, null, "circle");
 
         _info.SetWalle(cx - x, cy + y);
         // Grid.SetColumn(_info.Walle, cx - x);
         // Grid.SetRow(_info.Walle, cy + y);
         _info.MyBorders[(cx - x, cy + y)].Background = myColorBrush;
-        if (Brush.Size > 1)
-            Paint(cx - x, cy + y, Brush.Size, myColorBrush, null, "circle");
+        if (Pincel.Size > 1)
+            Paint(cx - x, cy + y, Pincel.Size, myColorBrush, null, "circle");
 
         _info.SetWalle(cx + x, cy - y);
         // Grid.SetColumn(_info.Walle, cx + x);
         // Grid.SetRow(_info.Walle, cy - y);
         _info.MyBorders[(cx + x, cy - y)].Background = myColorBrush;
-        if (Brush.Size > 1)
-            Paint(cx + x, cy - y, Brush.Size, myColorBrush, null, "circle");
+        if (Pincel.Size > 1)
+            Paint(cx + x, cy - y, Pincel.Size, myColorBrush, null, "circle");
 
         _info.SetWalle(cx - x, cy - y);
         // Grid.SetColumn(_info.Walle, cx - x);
         // Grid.SetRow(_info.Walle, cy - y);
         _info.MyBorders[(cx - x, cy - y)].Background = myColorBrush;
-        if (Brush.Size > 1)
-            Paint(cx - x, cy - y, Brush.Size, myColorBrush, null, "circle");
+        if (Pincel.Size > 1)
+            Paint(cx - x, cy - y, Pincel.Size, myColorBrush, null, "circle");
 
         _info.SetWalle(cx + y, cy + x);
         // Grid.SetColumn(_info.Walle, cx + y);
         // Grid.SetRow(_info.Walle, cy + x);
         _info.MyBorders[(cx + y, cy + x)].Background = myColorBrush;
-        if (Brush.Size > 1)
-            Paint(cx + y, cy + x, Brush.Size, myColorBrush, null, "circle");
+        if (Pincel.Size > 1)
+            Paint(cx + y, cy + x, Pincel.Size, myColorBrush, null, "circle");
 
         _info.SetWalle(cx - y, cy + x);
         // Grid.SetColumn(_info.Walle, cx - y);
         // Grid.SetRow(_info.Walle, cy + x);
         _info.MyBorders[(cx - y, cy + x)].Background = myColorBrush;
-        if (Brush.Size > 1)
-            Paint(cx - y, cy + x, Brush.Size, myColorBrush, null, "circle");
+        if (Pincel.Size > 1)
+            Paint(cx - y, cy + x, Pincel.Size, myColorBrush, null, "circle");
 
         _info.SetWalle(cx + y, cy - x);
         // Grid.SetColumn(_info.Walle, cx + y);
         // Grid.SetRow(_info.Walle, cy - x);
         _info.MyBorders[(cx + y, cy - x)].Background = myColorBrush;
-        if (Brush.Size > 1)
-            Paint(cx + y, cy - x, Brush.Size, myColorBrush, null, "circle");
+        if (Pincel.Size > 1)
+            Paint(cx + y, cy - x, Pincel.Size, myColorBrush, null, "circle");
 
         _info.SetWalle(cx - y, cy - x);
         // Grid.SetColumn(_info.Walle, cx - y);
         // Grid.SetRow(_info.Walle, cy - x);
         _info.MyBorders[(cx - y, cy - x)].Background = myColorBrush;
-        if (Brush.Size > 1)
-            Paint(cx - y, cy - x, Brush.Size, myColorBrush, null, "circle");
+        if (Pincel.Size > 1)
+            Paint(cx - y, cy - x, Pincel.Size, myColorBrush, null, "circle");
 
     }
     public void DrawRectangle(int dirX, int dirY, int distance, int width, int height)
@@ -601,7 +601,7 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         int WalleY = Grid.GetRow(_info.Walle);
         mask[WalleY, WalleX] = true;
         var color = _info.MyBorders[(WalleX, WalleY)].Background;
-        var myColorBrush = new SolidColorBrush(Color.Parse(Brush.Color));
+        var myColorBrush = new SolidColorBrush(Color.Parse(Pincel.Color));
         _info.MyBorders[(WalleX, WalleY)].Background = myColorBrush;
 
         for (int i = 0; i < direction.Length; i++)
