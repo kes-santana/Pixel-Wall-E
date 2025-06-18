@@ -177,11 +177,11 @@ public partial class MainWindow : Window, ICanvasInfo
         {
             using (var stream = AssetLoader.Open(iconUri))
             {
-                 bitmap = new Bitmap(stream);
+                bitmap = new Bitmap(stream);
             }
         }
         RemoveWalle();
-       
+
         var wallPicture = new ImageBrush
         {
             Source = bitmap,
@@ -317,7 +317,7 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         switch (color)
         {
             case "\"Red\"":
-               Pincel.Color = "Red";
+                Pincel.Color = "Red";
                 return;
             case "\"Blue\"":
                 Pincel.Color = "Blue";
@@ -357,7 +357,6 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         else Pincel.Size = k;
 
     }
-    //    TODO hacer que pinte la linea usando los diferntes tamanos de brocha
     public void DrawLine(int dirX, int dirY, int distance) //en realidad dirX es col y dirY es row
     {
         if (dirX != -1 && dirX != 0 && dirX != 1) return;
@@ -383,7 +382,8 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
                     continue;
                 }
             }
-            Paint(dirX, dirY, Pincel.Size, myColorBrush, i + 1, null);
+            if (Pincel.Size > 1)
+                Paint(dirX, dirY, Pincel.Size, myColorBrush, i + 1, null);
             i++;
         }
         // por si no funciona el metodo sin especificar el grid
@@ -410,17 +410,17 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
                     _info.MyBorders[(i, j)].Background = myColorBrush;
                 }
             }
+            return;
         }
 
         //para lineas hacia los lados y arriba abajo
         if (dirX == 1 && dirY == 0 || dirX == -1 && dirY == 0 || dirX == 0 && dirY == 1 || dirX == 0 && dirY == -1)
         {
-
             int count = 1;
-            while (count <= size / 2)
+            while (count <= (size / 2))
             {
-                _info.MyBorders[(col + dirY * count, row + dirX * count)].Background = myColorBrush;
-                _info.MyBorders[(col - dirY * count, row - dirX * count)].Background = myColorBrush;
+                _info.MyBorders[(row + (dirX * count), col + (dirY * count))].Background = myColorBrush;
+                _info.MyBorders[(row - (dirX * count), col - (dirY * count))].Background = myColorBrush;
                 count++;
             }
             return;
@@ -433,16 +433,14 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
             {
                 _info.MyBorders[(col - dirX * j, row)].Background = myColorBrush;
                 _info.MyBorders[(col, row - dirY * j)].Background = myColorBrush;
-
             }
             return;
         }
         //para cuando distancia es mayor o igual que el size de la brocha
-        for (int j = 1; j < Pincel.Size - 1; j++)
+        for (int j = 1; j <= Pincel.Size - 1; j++)
         {
             _info.MyBorders[(col - dirX * j, row)].Background = myColorBrush;
             _info.MyBorders[(col, row - dirY * j)].Background = myColorBrush;
-
         }
     }
     public void DrawCircle(int dirX, int dirY, int radius)
@@ -558,47 +556,73 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         if (MyFilas < 0 || MyFilas > _info.Dimensions - 1 || MyColumnas < 0 ||
             MyColumnas > _info.Dimensions - 1)
             return;
-        Grid.SetRow(_info.Walle, MyFilas);
-        Grid.SetColumn(_info.Walle, MyColumnas);
+        _info.SetWalle(MyColumnas, MyFilas);
+        // Grid.SetRow(_info.Walle, MyFilas);
+        // Grid.SetColumn(_info.Walle, MyColumnas);
 
         int upParalelRow = 0;
         int leftParalelCol = 0;
 
         if (height % 2 == 0)
-            upParalelRow = MyFilas - height / 2 + 1;
+            upParalelRow = MyFilas - 1 - height / 2 + 1;
         if (height % 2 != 0)
-            upParalelRow = MyFilas - height / 2;
+            upParalelRow = MyFilas - 1 - height / 2;
         if (width % 2 == 0)
-            leftParalelCol = MyColumnas - width / 2 + 1;
+            leftParalelCol = MyColumnas - 1 - width / 2 + 1;
         if (width % 2 != 0)
-            leftParalelCol = MyColumnas - width / 2;
+            leftParalelCol = MyColumnas - 1 - width / 2;
 
         if (upParalelRow < 0 || upParalelRow > _info.Dimensions ||
             leftParalelCol < 0 || leftParalelCol > _info.Dimensions) return;
 
-        Grid.SetRow(_info.Walle, upParalelRow);
-        Grid.SetColumn(_info.Walle, leftParalelCol);
+        if (Pincel.Size == 1)
+        {
+            _info.SetWalle(leftParalelCol, upParalelRow);
+            // Grid.SetRow(_info.Walle, upParalelRow);
+            // Grid.SetColumn(_info.Walle, leftParalelCol);
+            DrawLine(1, 0, width + 1);
+            DrawLine(0, 1, height + 1);
+            DrawLine(-1, 0, width + 1);
+            DrawLine(0, -1, height + 1);
 
-        DrawLine(1, 0, width);
-        DrawLine(0, 1, height);
-        DrawLine(-1, 0, width);
-        DrawLine(0, -1, height);
+            _info.SetWalle(MyColumnas, MyFilas);
+            // Grid.SetRow(_info.Walle, MyFilas);
+            // Grid.SetColumn(_info.Walle, MyColumnas);
+            return;
+        }
+        if (Pincel.Size > 1)
+        {
+            int incremento = (Pincel.Size - 1) / 2;
+            Grid.SetRow(_info.Walle, upParalelRow);
+            Grid.SetColumn(_info.Walle, leftParalelCol - incremento);
 
-        Grid.SetRow(_info.Walle, MyFilas);
-        Grid.SetColumn(_info.Walle, MyColumnas);
+            DrawLine(1, 0, width + 1 + (incremento * 2));
+            Grid.SetColumn(_info.Walle, Grid.GetColumn(_info.Walle) - incremento);
+
+            DrawLine(0, 1, height + 1 + incremento);
+            Grid.SetRow(_info.Walle, Grid.GetRow(_info.Walle) - incremento);
+
+            DrawLine(-1, 0, width + 1 + incremento);
+            Grid.SetColumn(_info.Walle, Grid.GetColumn(_info.Walle) + incremento);
+
+            DrawLine(0, -1, height + 1 + incremento);
+        }
+        _info.SetWalle(MyColumnas, MyFilas);
+        // Grid.SetRow(_info.Walle, MyFilas);
+        // Grid.SetColumn(_info.Walle, MyColumnas);
 
     }
     public void Fill()
     {
         bool[,] mask = new bool[_info.Dimensions, _info.Dimensions];
         (int, int)[] direction = [(1, 0), (-1, 0), (0, 1), (-1, 0)];
-
-        Fill(mask, direction);
-    }
-    public void Fill(bool[,] mask, (int, int)[] direction)
-    {
         int WalleX = Grid.GetColumn(_info.Walle);
         int WalleY = Grid.GetRow(_info.Walle);
+        Fill(mask, direction, WalleX, WalleY);
+    }
+    public void Fill(bool[,] mask, (int, int)[] direction, int WalleX, int WalleY)
+    {
+
         mask[WalleY, WalleX] = true;
         var color = _info.MyBorders[(WalleX, WalleY)].Background;
         var myColorBrush = new SolidColorBrush(Color.Parse(Pincel.Color));
@@ -609,15 +633,15 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
             var nextX = WalleX + direction[i].Item1;
             var nextY = WalleY + direction[i].Item2;
             if (nextX < 0 || nextX >= _info.Dimensions || nextY < 0 || nextY >= _info.Dimensions)
-                return;
+                continue;
             if (_info.MyBorders[(nextX, nextY)].Background != color)
-                return;
+                continue;
             if (mask[nextY, nextX]) //TODO ver si es Walle Y-X o Next Y-X
-                return;
+                continue;
             _info.SetWalle(nextX, nextY);
             // Grid.SetColumn(_info.Walle, nextX);
             // Grid.SetRow(_info.Walle, nextY);
-            Fill(mask, direction);
+            Fill(mask, direction, nextX, nextY);
         }
     }
     public void CallAction(string Name, object[] @params)
