@@ -4,7 +4,7 @@ namespace Compiler.Tokenizador;
 
 public class Tokenizador
 {
-    // public List<Exception> tokenException = [];
+    public List<Exception> tokenException = [];
     #region Patterns
 
     public static readonly string id = @"[a-zA-Z][a-zA-Z0-9_]*";
@@ -20,8 +20,7 @@ public class Tokenizador
 
     public string GetAllPatterns()
     {
-
-        return string.Join('|', @"[\t ]+", label, id, str, num, otherOp, assign, comp, op, "\r?\n", ".");
+        return string.Join('|', @"[\t ]+", label, id, str, num, otherOp, assign, comp, op, "\r\n|\n", ".");
     }
 
     public Token[] Tokenizar(string code)
@@ -36,15 +35,22 @@ public class Tokenizador
         {
             var value = match.Value;
             var type = GetTokenType(value);
-            // if (type == TokenType.Error)
-            // {
-            //     col += match.Length;
-            //     tokenException.Add(new Exception("Caracter no valido"));
-            //     continue;
-            // }
+            if (type is not TokenType.EndLine && string.IsNullOrEmpty(value.Trim()))
+            {
+                col += match.Length;
+                continue;
+            }
+            if (type is TokenType.Error)
+            {
+                col += match.Length;
+                tokenException.Add(new Exception($"El caracter '{value}' no es valido"));
+                continue;
+            }
+            if (type is TokenType.Label)
+                value = value.TrimEnd();
             tokens.Add(new(value, type, line, col));
             col += match.Length;
-            if (type != TokenType.EndLine)
+            if (type is not TokenType.EndLine)
                 continue;
             line++;
             col = 0;
@@ -114,9 +120,9 @@ public class Tokenizador
         if (value[^1] == '"' && value[0] == '"')
             return TokenType.String;
 
-        // if (!char.IsLetterOrDigit(value[0]))
-        //     return TokenType.Error;
-        
+        if (!char.IsLetterOrDigit(value[0]))
+            return TokenType.Error;
+
         return TokenType.Identificador;
     }
 }
