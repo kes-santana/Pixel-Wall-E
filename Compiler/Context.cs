@@ -12,10 +12,10 @@ public class Context(IContextFunction contextFunction, IContextAction contextAct
 
 public interface IContextFunction
 {
-    object CallFunction(string Name, object[] @params);
+    object CallFunction(string Name, object?[] @params);
 }
 
 public interface IContextAction
 {
-    void CallAction(string Name, object[] @params);
+    void CallAction(string Name, object?[] @params);
 }
