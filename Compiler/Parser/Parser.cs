@@ -1,4 +1,5 @@
 
+using System.Reflection.Metadata.Ecma335;
 using Compiler.Interfaces;
 using Compiler.Language;
 using Compiler.Language.Expressions;
@@ -37,7 +38,7 @@ public class Parser
 
     private void ProcessInstruction(Token[] tokens, List<IInstruction> instructions, IInstruction? inst)
     {
-        if (inst is not null)
+        if (inst is not null && ParserErrors.Count == 0)
         {
             instructions.Add(inst);
             return;
@@ -58,33 +59,33 @@ public class Parser
     private IInstruction? ParseMethod(Token[] tokens)
     {
         var name = tokens[tokenIndex].Value;
-        List<IExpression<object>> parameters = [];
+        List<IExpression<object?>> parameters = [];
         if (!ParseMethodA(tokens, parameters))
             return default;
-        IExpression<object>[] myParams = [.. parameters];
+        IExpression<object?>[] myParams = [.. parameters];
         return new Method(name, myParams);
     }
 
     private IExpression<T>? ParseMethodWith<T>(Token[] tokens)
     {
+        int startIndex = tokenIndex;
         var name = tokens[tokenIndex].Value;
-        List<IExpression<object>> parameters = [];
+        List<IExpression<object?>> parameters = [];
         if (!ParseMethodA(tokens, parameters))
+        {
+            tokenIndex = startIndex;
             return default;
-        IExpression<object>[] myParams = [.. parameters];
+        }
+        IExpression<object?>[] myParams = [.. parameters];
         return new Method<T>(name, myParams);
     }
-    private bool ParseMethodA(Token[] tokens, List<IExpression<object>> parameters)
+    private bool ParseMethodA(Token[] tokens, List<IExpression<object?>> parameters)
     {
         if (!TokenMatch(tokens, TokenType.Identificador))
             return false;
-
         // primer parentesis
         if (!TokenMatch(tokens, TokenType.ParentesisAbierto))
-        {
-            ParserErrors.Add(new Exception("Se esperaba ("));
             return false;
-        }
         //  parametros
         Parameters(tokens, parameters);
         // segundo parentesis
@@ -96,24 +97,31 @@ public class Parser
         return true;
     }
 
-    private void Parameters(Token[] tokens, List<IExpression<object>> @params)
+    private void Parameters(Token[] tokens, List<IExpression<object?>> @params)
     {
         if (!TokenMatch(tokens, TokenType.Identificador))
         {
-            if (!TokenMatch(tokens, TokenType.Num))
-                if (!TokenMatch(tokens, TokenType.String))
-                    return;
-            object value = int.TryParse(tokens[tokenIndex - 1].Value, out int num)
-                ? num : tokens[tokenIndex - 1].Value;
-            @params.Add(new Literal<object>(value));
+            var num = ParseResta(tokens);
+
+            if (num is not null)
+            {
+                @params.Add(new ConvertExpression<int>(num));
+                RevisarParams(tokens, @params);
+                return;
+            }
+
+            if (!TokenMatch(tokens, TokenType.String))
+                return;
+            object value = tokens[tokenIndex - 1].Value;
+            @params.Add(new Literal<object?>(value));
             RevisarParams(tokens, @params);
             return;
         }
-        @params.Add(new Variable<object>(tokens[tokenIndex - 1].Value));
+        @params.Add(new Variable<object?>(tokens[tokenIndex - 1].Value));
         RevisarParams(tokens, @params);
     }
 
-    private void RevisarParams(Token[] tokens, List<IExpression<object>> @params)
+    private void RevisarParams(Token[] tokens, List<IExpression<object?>> @params)
     {
         var index = tokenIndex;
         if (TokenMatch(tokens, TokenType.EndLine))
@@ -128,9 +136,6 @@ public class Parser
         }
         if (!TokenMatch(tokens, TokenType.Coma))
         {
-            if (!TokenMatch(tokens, TokenType.Num))
-                if (!TokenMatch(tokens, TokenType.String))
-                    return;
             ParserErrors.Add(new Exception("Se esperaba ','"));
             return;
         }
@@ -191,7 +196,6 @@ public class Parser
 
         return new Label(token.Value, token.Row);
     }
-
     private IInstruction? ParseAssign(Token[] tokens)
     {
         var token = tokens[tokenIndex];
@@ -207,22 +211,21 @@ public class Parser
         tokenIndex++;
         return GetAssign(tokens, name);
     }
-
     private IInstruction? GetAssign(Token[] tokens, string name)
     {
         int actualIndex = tokenIndex;
         IExpression<bool>? boolean = ParseBoolean(tokens);
-        if (boolean is not null)
+        if (boolean is not null && TokenMatch(tokens, TokenType.EndLine))
             return new Assign<bool>(name, boolean);
 
         tokenIndex = actualIndex;
         IExpression<int>? num = ParseNumber(tokens);
-        if (num is not null)
+        if (num is not null && TokenMatch(tokens, TokenType.EndLine))
             return new Assign<int>(name, num);
 
         tokenIndex = actualIndex;
         IExpression<string>? str = ParseColor(tokens);
-        if (str is not null)
+        if (str is not null && TokenMatch(tokens, TokenType.EndLine))
             return new Assign<string>(name, str);
 
         tokenIndex = actualIndex;
@@ -239,17 +242,14 @@ public class Parser
     {
         return ParseBuild(tokens, ParseMult, [TokenType.Suma, TokenType.Resta]);
     }
-
     private IExpression<int>? ParseMult(Token[] tokens)
     {
         return ParseBuild(tokens, ParsePow, [TokenType.Mult, TokenType.Module, TokenType.Div]);
     }
-
     private IExpression<int>? ParsePow(Token[] tokens)
     {
         return ParseBuild(tokens, ParseNumLiteral, [TokenType.Exp]);
     }
-
     private IExpression<int>? ParseNumLiteral(Token[] tokens)
         => ParseLiteral<int>(tokens, TokenType.Num);
     #endregion
@@ -288,7 +288,7 @@ public class Parser
     }
 
     private IExpression<bool>? ParseBoolLiteral(Token[] tokens) =>
-        ParseLiteral<bool>(tokens, TokenType.Boolean) ?? Comparacion(tokens);
+        Comparacion(tokens) ?? ParseLiteral<bool>(tokens, TokenType.Boolean);
     #endregion
 
     #region  Tools
@@ -371,11 +371,18 @@ public class Parser
             TokenType.Div => BinaryTypes.Div,
             TokenType.Module => BinaryTypes.Modulo,
             TokenType.Exp => BinaryTypes.Potencia,
+            TokenType.And => BinaryTypes.And,
+            TokenType.Or => BinaryTypes.Or,
+            TokenType.Major => BinaryTypes.Major,
+            TokenType.Minor => BinaryTypes.Minor,
+            TokenType.MajorEqual => BinaryTypes.MajorEqual,
+            TokenType.MinorEqual => BinaryTypes.MinorEqual,
+            TokenType.Equal => BinaryTypes.Equal,
+            TokenType.Diferent => BinaryTypes.Diferent,
             _ => throw new NotImplementedException(),
         };
     }
 
-    // que me expliquen esto
     private IExpression<T>? ParseLiteral<T>(Token[] tokens, TokenType type)
         where T : IParsable<T>
     {
@@ -420,4 +427,34 @@ public class Parser
         BinaryTypes.Or;
 
     #endregion
+
+    public IExpression<int>? ParseResta(Token[] tokens)
+    {
+        int count = 0;
+        while (TokenMatch(tokens, TokenType.Resta))
+        {
+            count++;
+        }
+        if (count % 2 == 0)
+            return ParseLiteral<int>(tokens, TokenType.Num);
+        return ParseLiteralNegativo<int>(tokens, TokenType.Num);
+    }
+
+    private IExpression<int>? ParseLiteralNegativo<T>(Token[] tokens, TokenType type)
+            where T : IParsable<T>
+    {
+        var token = tokens[tokenIndex];
+        if (TokenMatch(tokens, type))
+        {
+            bool myBool = int.TryParse(token.Value, out int a);
+            if (myBool)
+                return new Literal<int>(a * (-1));
+        }
+        var exp = ParseMethodWith<int>(tokens);
+        if (exp != null)
+            return new BinaryAritmeticExpression(new Literal<int>(0), exp, BinaryTypes.Resta);
+        if (TokenMatch(tokens, TokenType.Identificador))
+            return new BinaryAritmeticExpression(new Literal<int>(0), new Variable<int>(token.Value), BinaryTypes.Resta);
+        return default;
+    }
 }
