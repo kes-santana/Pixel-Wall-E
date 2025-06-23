@@ -154,6 +154,7 @@
             Grid.ColumnSpan="2"
                 Grid.Row="1"
                 Grid.RowSpan="2"
+                
                 />
 
             <Grid x:Name="WalleCanvas" Grid.Column="1"
@@ -178,8 +179,32 @@
                            LineNumbersForeground="Blue"
                            FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
                            TextChanged="TextEditor_TextChanged"/>
+            
+            <Grid x:Name="ProblemWindow " IsVisible="False" Grid.Row="1" Grid.RowSpan="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="2*"/>
+                    <RowDefinition Height="2*"/>
+                    <RowDefinition Height="0.3*"/>  
+                    <RowDefinition Height="1.8*"/>                
+                </Grid.RowDefinitions>
 
+                <Border Grid.Row="2" BorderBrush="White" BorderThickness="1" Background="LightGray">
+                        <TextBlock Text="PROBLEMS"  HorizontalAlignment="Center"
+                        VerticalAlignment="Center"/>
+                </Border>
 
+                <Border Grid.Row="3" BorderBrush="White"
+                        BorderThickness="1">
+                    <AvaloniaEdit:TextEditor x:Name="errorBar"
+                                ShowLineNumbers="True"
+                                LineNumbersForeground="White"
+                                IsReadOnly="True"
+                                FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                                TextChanged="TextEditor_TextChanged"
+                                Foreground="Snow"
+                                Background="DarkBlue"/>
+                </Border>
+            </Grid>
             <!-- <ScrollViewer  Grid.Row="1" Grid.RowSpan="2"
                     VerticalScrollBarVisibility="Visible"
                     HorizontalScrollBarVisibility="Visible">

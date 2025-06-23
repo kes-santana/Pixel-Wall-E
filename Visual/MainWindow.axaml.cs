@@ -11,6 +11,10 @@ using System;
 using System.IO;
 using Avalonia.Platform.Storage;
 using Avalonia.Platform;
+using Compiler.Language;
+using Avalonia.Input;
+using System.Text;
+
 
 namespace Visual;
 
@@ -24,7 +28,7 @@ public partial class MainWindow : Window, ICanvasInfo
     }
     public Border Walle { get; set; } = new();
     public Dictionary<(int, int), Border> MyBorders { get; } = [];
-
+    public List<Exception> exceptions = [];
     FunctionMethods functions;
     ActionMethods actions;
 
@@ -33,6 +37,7 @@ public partial class MainWindow : Window, ICanvasInfo
         InitializeComponent();
         functions = new FunctionMethods(this);
         actions = new ActionMethods(this);
+        this.KeyDown += OnKeyDown;
     }
     public void OpenWorkWindow(object sender, RoutedEventArgs e)
     {
@@ -42,9 +47,14 @@ public partial class MainWindow : Window, ICanvasInfo
     public void GenerateBoard(object sender, RoutedEventArgs e)
     {
         MyBorders.Clear();
+        RemoveWalle();
         MyCanvas.ColumnDefinitions.Clear();
         MyCanvas.RowDefinitions.Clear();
         MyCanvas.Children.Clear();
+        WalleCanvas.ColumnDefinitions.Clear();
+        WalleCanvas.RowDefinitions.Clear();
+        WalleCanvas.Children.Clear();
+        errorBar.Text = "";
         {
             if (int.TryParse(MyDimension.Text, out int dimensions))
                 Dimensions = dimensions;
@@ -77,7 +87,7 @@ public partial class MainWindow : Window, ICanvasInfo
                     Grid.SetRow(cell, row);
                     Grid.SetColumn(cell, col);
                     MyCanvas.Children.Add(cell);
-                    MyBorders.Add((row, col), cell);
+                    MyBorders.Add((col, row), cell);
                 }
             }
         }
@@ -105,36 +115,89 @@ public partial class MainWindow : Window, ICanvasInfo
     }
     public void PlayButton_Click(object sender, RoutedEventArgs e)
     {
+        errorBar.Text = "";
+        exceptions.Clear();
         var parser = new Parser();
         var context = new Context(functions, actions);
-        var tokenizador = new Tokenizador(); //TODO: Convertir a no estatico
+        var tokenizador = new Tokenizador();
 
         var code = textEditor.Text;
         var tokens = tokenizador.Tokenizar(code);
-        var ast = parser.Parse(tokens);    //es ast pero es un bloque  
-        ast.Excute(context);
+        var ast = parser.Parse(tokens);
+
+        try
+        {
+            if (Dimensions == 0)
+                exceptions.Add
+                (new Exception("Debe generar el tablero antes de ejecutar el programa"));
+
+            if ((ast as Block)!.Instructions[0] is not Method method
+                || method.Name != "Spawn" && method.Name != "spawn")
+            {
+                exceptions.Add(new Exception("Debe comenzar el bloque de instrucciones con la instruccion 'Spawn' "));
+            }
+
+            if ((ast as Block)!.Instructions[0] is not Method metodo ||
+                 metodo.Name != "Spawn" && metodo.Name == "spawn")
+                exceptions.Add(new Exception("El metodo 'Spawn' ha sido mal llamado"));
+
+            ast.Excute(context);
+            if (parser.ParserErrors.Count != 0)
+                throw parser.ParserErrors[0];
+
+            if (tokenizador.tokenException.Count != 0)
+                throw tokenizador.tokenException[0];
+        }
+        catch (Exception exc)
+        {
+            // TODO: agregar todos los errores y la (linea,columna) en la que estan
+            // var message = exc.Message;
+            // errorBar.Text = message;
+
+            var sb = new StringBuilder();
+
+            foreach (var err in exceptions)
+            {
+                sb.AppendLine($"{err.Message}");
+            }
+
+            foreach (var err in parser.ParserErrors)
+            {
+                sb.AppendLine($"{err.Message}");
+            }
+            foreach (var err in tokenizador.tokenException)
+            {
+                sb.AppendLine($"{err.Message}");
+            }
+            // Mensaje principal de la excepción atrapada
+            sb.AppendLine($"{exc.Message}");
+
+            errorBar.Document.Text = sb.ToString();
+            ProblemWindow.IsVisible = true;
+        }
     }
+
     private async void SaveDocument(object? sender, RoutedEventArgs e)
     {
         var savePicker = new FilePickerSaveOptions
         {
             Title = "Save file",
             SuggestedFileName = "nuevo_archivo.pw",
-            FileTypeChoices = new List<FilePickerFileType>
-            {
+            FileTypeChoices =
+            [
                 new("Archivo protegido")
                 {
-                    Patterns = new[] { "*.pw" }
+                    Patterns = ["*.pw"]
                 }
-            }
+            ]
         };
 
         var file = await StorageProvider.SaveFilePickerAsync(savePicker);
 
         if (file != null)
         {
-            var stream = await file.OpenWriteAsync();
-            var writer = new StreamWriter(stream);
+            using var stream = await file.OpenWriteAsync();
+            using var writer = new StreamWriter(stream);
             await writer.WriteAsync(textEditor.Text);
         }
     }
@@ -144,13 +207,13 @@ public partial class MainWindow : Window, ICanvasInfo
         {
             Title = "Open file",
             AllowMultiple = false,
-            FileTypeFilter = new List<FilePickerFileType>
-            {
+            FileTypeFilter =
+            [
                 new("Archivo protegido")
                 {
-                    Patterns = new[] { "*.pw" }
+                    Patterns = ["*.pw"]
                 }
-            }
+            ]
         };
 
         var files = await StorageProvider.OpenFilePickerAsync(openPicker);
@@ -159,11 +222,25 @@ public partial class MainWindow : Window, ICanvasInfo
         {
             var file = files[0];
 
-            var stream = await file.OpenReadAsync();
-            var reader = new StreamReader(stream);
+            using var stream = await file.OpenReadAsync();
+            using var reader = new StreamReader(stream);
             string contenido = await reader.ReadToEndAsync();
-
             textEditor.Text = contenido;
+        }
+    }
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (StartWindow.IsVisible && e.Key == Key.Enter)
+        {
+            StartWindow.IsVisible = false;
+            WorkWindow.IsVisible = true;
+            return;
+        }
+
+        // Solo activar Ctrl+J si la pantalla de WorkWindow esta en true
+        if (!StartWindow.IsVisible && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.J)
+        {
+            ProblemWindow.IsVisible = !ProblemWindow.IsVisible;
         }
     }
 
@@ -206,16 +283,15 @@ public partial class MainWindow : Window, ICanvasInfo
     }
     public void SetWalle(int x, int y)
     {
-
         if (x >= Dimensions)
             Grid.SetColumn(Walle, Dimensions - 1);
-        if (x < 0)
+        else if (x < 0)
             Grid.SetColumn(Walle, 0);
         else { Grid.SetColumn(Walle, x); }
 
         if (y >= Dimensions)
             Grid.SetRow(Walle, Dimensions - 1);
-        if (y < 0)
+        else if (y < 0)
             Grid.SetRow(Walle, 0);
         else { Grid.SetRow(Walle, y); }
 
@@ -236,13 +312,14 @@ public interface ICanvasInfo
     void CreateWalle();
     void RemoveWalle();
     void SetWalle(int x, int y);
+
 }
 public class FunctionMethods(ICanvasInfo info) : IContextFunction
 {
     private readonly ICanvasInfo _info = info;
 
-    public int GetActualY() => Grid.GetRow(_info.Walle);
     public int GetActualX() => Grid.GetColumn(_info.Walle);
+    public int GetActualY() => Grid.GetRow(_info.Walle);
     public int GetCanvasSize() => _info.Dimensions;
     public int GetColorCount(string color, int x1, int y1, int x2, int y2)
     {
@@ -256,47 +333,64 @@ public class FunctionMethods(ICanvasInfo info) : IContextFunction
         int minorX = x1 + x2 - majorX;
         int majorY = y1 > y2 ? y1 : y2;
         int minorY = y1 + y2 - majorY;
-        var MyColor = new SolidColorBrush(Color.Parse(color));
+        string fixColor = "";
+
+        for (int i = 1; i < color.Length - 1; i++)
+            fixColor += color[i];
+
+        var castColor = new SolidColorBrush(Color.Parse(fixColor));
 
         for (int i = minorX; i <= majorX; i++)
         {
             for (int j = minorY; j <= majorY; j++)
             {
-                if (_info.MyBorders[(i, j)].Background == MyColor)
+                var cellColor = _info.MyBorders[(i, j)].Background as SolidColorBrush;
+                if (cellColor?.Color == castColor?.Color)
                     count++;
             }
         }
         return count;
     }
-    public int IsBrushColor(string color) => Pincel.Color == color ? 1 : 0;
+    public int IsBrushColor(string color)
+    {
+        string fixColor = "";
+        for (int i = 1; i < color.Length - 1; i++)
+            fixColor += color[i];
+        return Pincel.Color == fixColor ? 1 : 0;
+    }
     public int IsBrushSize(int size) => Pincel.Size == size ? 1 : 0;
     public int IsCanvasColor(string color, int vertical, int horizontal)
     {
-        int fila = Grid.GetRow(_info.Walle) + horizontal;
-        int columna = Grid.GetColumn(_info.Walle) + vertical;
-        var MyColor = new SolidColorBrush(Color.Parse(color));
+        int fila = Grid.GetRow(_info.Walle) + vertical;
+        int columna = Grid.GetColumn(_info.Walle) + horizontal;
+        if (fila < 0 || fila > _info.Dimensions - 1 || columna < 0 || columna > _info.Dimensions - 1)
+            return 0;
+        string fixColor = "";
+        for (int i = 1; i < color.Length - 1; i++)
+            fixColor += color[i];
+        var MyColor = new SolidColorBrush(Color.Parse(fixColor));
         if (fila < 0 || fila > _info.Dimensions ||
          columna < 0 || columna > _info.Dimensions) return 0;
-        return _info.MyBorders[(fila, columna)].Background == MyColor ? 1 : 0;
+        var castColor = _info.MyBorders[(columna, fila)].Background as SolidColorBrush;
+        return castColor?.Color == MyColor?.Color ? 1 : 0;
     }
-    public object CallFunction(string Name, object[] @params) => Name switch
+    public object CallFunction(string Name, object?[] @params) => Name switch
     {
-        //TODO hacer un switch por los metodos implementados en esta clase
         "GetActualY" => GetActualY(),
         "GetActualX" => GetActualX(),
         "GetCanvasSize" => GetCanvasSize(),
-        "GetColorCount" => GetColorCount((string)@params[0], (int)@params[1], (int)@params[2], (int)@params[3], (int)@params[4]),
-        "IsBrushColor" => IsBrushColor((string)@params[0]),
-        "IsBrushSize" => IsBrushSize((int)@params[0]),
-        "IsCanvasColor" => IsCanvasColor((string)@params[0], (int)@params[1], (int)@params[2]),
-        _ => throw new NotImplementedException(),
+        "GetColorCount" => GetColorCount((string)@params[0]!, (int)@params[1]!, (int)@params[2]!, (int)@params[3]!, (int)@params[4]!),
+        "IsBrushColor" => IsBrushColor((string)@params[0]!),
+        "IsBrushSize" => IsBrushSize((int)@params[0]!),
+        "IsCanvasColor" => IsCanvasColor((string)@params[0]!, (int)@params[1]!, (int)@params[2]!),
+        _ => new Exception("El metodo no existe o ha sido mal llamado"),
     };
 
 }
 public class ActionMethods(ICanvasInfo info) : IContextAction
 {
     private readonly ICanvasInfo _info = info;
-
+    
     public void Spawn(int x, int y)
     {
         _info.CreateWalle();
@@ -312,31 +406,90 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         //     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
         // };
     }
-    public void BrushColor(string color)
+    public void Color(string color)
     {
         switch (color)
         {
+            case "\"Crimson\"":
+                Pincel.Color = "Crimson";
+                return;
             case "\"Red\"":
                 Pincel.Color = "Red";
+                return;
+
+            case "\"Dark Blue\"":
+                Pincel.Color = "DarkBlue";
                 return;
             case "\"Blue\"":
                 Pincel.Color = "Blue";
                 return;
+            case "\"Dodger Blue\"":
+                Pincel.Color = "DodgerBlue";
+                return;
+            case "\"Deep Sky Blue\"":
+                Pincel.Color = "DeepSkyBlue";
+                return;
+
+            case "\"Dark Green\"":
+                Pincel.Color = "DarkGreen";
+                return;
             case "\"Green\"":
                 Pincel.Color = "Green";
+                return;
+            case "\"Lime Green\"":
+                Pincel.Color = "LimeGreen";
+                return;
+
+            case "\"Gold\"":
+                Pincel.Color = "Gold";
                 return;
             case "\"Yellow\"":
                 Pincel.Color = "Yellow";
                 return;
+            case "\"Beige\"":
+                Pincel.Color = "Beige";
+                return;
+
+            case "\"Dark Orange\"":
+                Pincel.Color = "DarkOrange";
+                return;
             case "\"Orange\"":
                 Pincel.Color = "Orange";
                 return;
+            case "\"Light Salmon\"":
+                Pincel.Color = "LightSalmon";
+                return;
+
             case "\"Purple\"":
                 Pincel.Color = "Purple";
+                return;
+            case "\"Blue Violet\"":
+                Pincel.Color = "BlueViolet";
+                return;
+            case "\"Medium Purple\"":
+                Pincel.Color = "MediumPurple";
+                return;
+
+            case "\"Deep Pink\"":
+                Pincel.Color = "DeepPink";
+                return;
+            case "\"Hot Pink\"":
+                Pincel.Color = "HotPink";
+                return;
+            case "\"Pink\"":
+                Pincel.Color = "Pink";
+                return;
+
+            case "\"Dark Gray\"":
+                Pincel.Color = "DarkGray";
+                return;
+            case "\"Slate Gray\"":
+                Pincel.Color = "SlateGray";
                 return;
             case "\"Black\"":
                 Pincel.Color = "Black";
                 return;
+
             case "\"White\"" or "\"Transparent\"":
                 Pincel.Color = "White";
                 return;
@@ -364,19 +517,22 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         int fila = Grid.GetRow(_info.Walle);
         int columna = Grid.GetColumn(_info.Walle);
         int i = 0;
-        while (i <= distance)
+        //var endPos = _info.MyBorders[(columna + dirX * distance, fila + dirY * distance)].Background;
+        while (i < distance)
         {
             int MyFilas = fila + dirY * i;
             int MyColumnas = columna + dirX * i;
             _info.SetWalle(MyColumnas, MyFilas);
-            // Grid.SetRow(_info.Walle, MyFilas);
-            // Grid.SetColumn(_info.Walle, MyColumnas);
-            var myColorBrush = new SolidColorBrush(Color.Parse(Pincel.Color));
-            _info.MyBorders[(MyFilas, MyColumnas)].Background = myColorBrush;
+            var myColorBrush = new SolidColorBrush(Avalonia.Media.Color.Parse(Pincel.Color));
+            if (MyColumnas < 0 || MyColumnas > _info.Dimensions - 1 || MyFilas < 0 || MyFilas > _info.Dimensions - 1)
+            {
+                _info.SetWalle(columna + dirX * (i - 1), fila + dirY * (i - 1));
+                return;
+            }
+            _info.MyBorders[(MyColumnas, MyFilas)].Background = myColorBrush;
             if (i == 0)
             {
-                if (dirX == 1 && dirY != 0 || dirX == -1 && dirY != 0 ||
-              dirX != 0 && dirY == 1 || dirX != 0 && dirY == -1)
+                if (dirY != 0 && dirX != 0)
                 {
                     i++;
                     continue;
@@ -386,6 +542,7 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
                 Paint(dirX, dirY, Pincel.Size, myColorBrush, i + 1, null);
             i++;
         }
+        _info.SetWalle(columna + dirX * distance, fila + dirY * distance);
         // por si no funciona el metodo sin especificar el grid
         // if (miGrid.Children.Contains(_info.Walle))
         // {
@@ -407,6 +564,8 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
             {
                 for (int j = row - aumento; j <= row + aumento; j++)
                 {
+                    if (i < 0 || i > _info.Dimensions - 1 || j < 0 || j > _info.Dimensions - 1)
+                        continue;
                     _info.MyBorders[(i, j)].Background = myColorBrush;
                 }
             }
@@ -414,17 +573,24 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         }
 
         //para lineas hacia los lados y arriba abajo
-        if (dirX == 1 && dirY == 0 || dirX == -1 && dirY == 0 || dirX == 0 && dirY == 1 || dirX == 0 && dirY == -1)
+        if (dirX == 0 || dirY == 0)
         {
             int count = 1;
             while (count <= (size / 2))
             {
-                _info.MyBorders[(row + (dirX * count), col + (dirY * count))].Background = myColorBrush;
-                _info.MyBorders[(row - (dirX * count), col - (dirY * count))].Background = myColorBrush;
+                if (0 <= col + (dirY * count) && col + (dirY * count) < _info.Dimensions
+                    && 0 <= row + (dirX * count) && row + (dirX * count) < _info.Dimensions)
+                    _info.MyBorders[(col + (dirY * count), row + (dirX * count))].Background = myColorBrush;
+
+                if (0 <= col - (dirY * count) && col - (dirY * count) < _info.Dimensions
+                   && 0 <= row - (dirX * count) && row - (dirX * count) < _info.Dimensions)
+                    _info.MyBorders[(col - (dirY * count), row - (dirX * count))].Background = myColorBrush;
+
                 count++;
             }
             return;
         }
+
         //para lineas hacia las diagonales
         //para cuando distancia es menor que el size de la brocha
         if (myCount < Pincel.Size)
@@ -449,20 +615,19 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
         if (dirY != -1 && dirY != 0 && dirY != 1) return;
         int WalleY = Grid.GetRow(_info.Walle);
         int WalleX = Grid.GetColumn(_info.Walle);
-        var myColorBrush = new SolidColorBrush(Color.Parse(Pincel.Color));
-        // set walle psition
+        var myColorBrush = new SolidColorBrush(Avalonia.Media.Color.Parse(Pincel.Color));
+
+        //para calcular el centro
         int MyFilas = WalleY + dirY * radius;
         int MyColumnas = WalleX + dirX * radius;
+
         if (MyFilas < 0 || MyFilas > _info.Dimensions - 1 || MyColumnas < 0 ||
             MyColumnas > _info.Dimensions - 1)
             return;
+
         _info.SetWalle(MyColumnas, MyFilas);
-        // Grid.SetRow(_info.Walle, MyFilas);
-        // Grid.SetColumn(_info.Walle, MyColumnas);
         DrawCircle(MyColumnas, MyFilas, radius, myColorBrush);
         _info.SetWalle(MyColumnas, MyFilas);
-        // Grid.SetRow(_info.Walle, MyFilas);
-        // Grid.SetColumn(_info.Walle, MyColumnas);
     }
     public void DrawCircle(int centerX, int centerY, int radius, SolidColorBrush myColorBrush)
     {
@@ -488,61 +653,70 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
     }
     public void PlotCircleCell(int cx, int cy, int x, int y, SolidColorBrush myColorBrush)
     {
-        _info.SetWalle(cx + x, cy + y);
-        // Grid.SetColumn(_info.Walle, cx + x);
-        // Grid.SetRow(_info.Walle, cy + y);
-        _info.MyBorders[(cx + x, cy + y)].Background = myColorBrush;
+        if (0 <= cx + x && cx + x < _info.Dimensions && 0 <= cy + y && cy + y < _info.Dimensions)
+        {
+            _info.SetWalle(cx + x, cy + y);
+            _info.MyBorders[(cx + x, cy + y)].Background = myColorBrush;
+        }
         if (Pincel.Size > 1)
             Paint(cx + x, cy + y, Pincel.Size, myColorBrush, null, "circle");
 
-        _info.SetWalle(cx - x, cy + y);
-        // Grid.SetColumn(_info.Walle, cx - x);
-        // Grid.SetRow(_info.Walle, cy + y);
-        _info.MyBorders[(cx - x, cy + y)].Background = myColorBrush;
+        if (0 <= cx - x && cx - x < _info.Dimensions && 0 <= cy + y && cy + y < _info.Dimensions)
+        {
+            _info.SetWalle(cx - x, cy + y);
+            _info.MyBorders[(cx - x, cy + y)].Background = myColorBrush;
+        }
         if (Pincel.Size > 1)
             Paint(cx - x, cy + y, Pincel.Size, myColorBrush, null, "circle");
 
-        _info.SetWalle(cx + x, cy - y);
-        // Grid.SetColumn(_info.Walle, cx + x);
-        // Grid.SetRow(_info.Walle, cy - y);
-        _info.MyBorders[(cx + x, cy - y)].Background = myColorBrush;
+        if (0 <= cx + x && cx + x < _info.Dimensions && 0 <= cy - y && cy - y < _info.Dimensions)
+        {
+            _info.SetWalle(cx + x, cy - y);
+            _info.MyBorders[(cx + x, cy - y)].Background = myColorBrush;
+        }
         if (Pincel.Size > 1)
             Paint(cx + x, cy - y, Pincel.Size, myColorBrush, null, "circle");
 
-        _info.SetWalle(cx - x, cy - y);
-        // Grid.SetColumn(_info.Walle, cx - x);
-        // Grid.SetRow(_info.Walle, cy - y);
-        _info.MyBorders[(cx - x, cy - y)].Background = myColorBrush;
+        if (0 <= cx - x && cx - x < _info.Dimensions && 0 <= cy - y && cy - y < _info.Dimensions)
+        {
+            _info.SetWalle(cx - x, cy - y);
+            _info.MyBorders[(cx - x, cy - y)].Background = myColorBrush;
+        }
         if (Pincel.Size > 1)
             Paint(cx - x, cy - y, Pincel.Size, myColorBrush, null, "circle");
 
-        _info.SetWalle(cx + y, cy + x);
-        // Grid.SetColumn(_info.Walle, cx + y);
-        // Grid.SetRow(_info.Walle, cy + x);
-        _info.MyBorders[(cx + y, cy + x)].Background = myColorBrush;
+        if (0 <= cx + y && cx + y < _info.Dimensions && 0 <= cy + x && cy + x < _info.Dimensions)
+        {
+            _info.SetWalle(cx + y, cy + x);
+            _info.MyBorders[(cx + y, cy + x)].Background = myColorBrush;
+        }
         if (Pincel.Size > 1)
             Paint(cx + y, cy + x, Pincel.Size, myColorBrush, null, "circle");
 
-        _info.SetWalle(cx - y, cy + x);
-        // Grid.SetColumn(_info.Walle, cx - y);
-        // Grid.SetRow(_info.Walle, cy + x);
-        _info.MyBorders[(cx - y, cy + x)].Background = myColorBrush;
+        if (0 <= cx - y && cx - y < _info.Dimensions && 0 <= cy + x && cy + x < _info.Dimensions)
+        {
+            _info.SetWalle(cx - y, cy + x);
+            _info.MyBorders[(cx - y, cy + x)].Background = myColorBrush;
+        }
         if (Pincel.Size > 1)
             Paint(cx - y, cy + x, Pincel.Size, myColorBrush, null, "circle");
 
-        _info.SetWalle(cx + y, cy - x);
-        // Grid.SetColumn(_info.Walle, cx + y);
-        // Grid.SetRow(_info.Walle, cy - x);
-        _info.MyBorders[(cx + y, cy - x)].Background = myColorBrush;
+        if (0 <= cx + y && cx + y < _info.Dimensions && 0 <= cy - x && cy - x < _info.Dimensions)
+        {
+            _info.SetWalle(cx + y, cy - x);
+            _info.MyBorders[(cx + y, cy - x)].Background = myColorBrush;
+        }
         if (Pincel.Size > 1)
             Paint(cx + y, cy - x, Pincel.Size, myColorBrush, null, "circle");
 
-        _info.SetWalle(cx - y, cy - x);
-        // Grid.SetColumn(_info.Walle, cx - y);
-        // Grid.SetRow(_info.Walle, cy - x);
-        _info.MyBorders[(cx - y, cy - x)].Background = myColorBrush;
+        if (0 <= cx - y && cx - y < _info.Dimensions && 0 <= cy - x && cy - x < _info.Dimensions)
+        {
+            _info.SetWalle(cx - y, cy - x);
+            _info.MyBorders[(cx - y, cy - x)].Background = myColorBrush;
+        }
         if (Pincel.Size > 1)
             Paint(cx - y, cy - x, Pincel.Size, myColorBrush, null, "circle");
+
 
     }
     public void DrawRectangle(int dirX, int dirY, int distance, int width, int height)
@@ -557,75 +731,49 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
             MyColumnas > _info.Dimensions - 1)
             return;
         _info.SetWalle(MyColumnas, MyFilas);
-        // Grid.SetRow(_info.Walle, MyFilas);
-        // Grid.SetColumn(_info.Walle, MyColumnas);
-
-        int upParalelRow = 0;
-        int leftParalelCol = 0;
-
-        if (height % 2 == 0)
-            upParalelRow = MyFilas - 1 - height / 2 + 1;
+        int upParalelRow = MyFilas - 1 - height / 2 + 1;
+        int leftParalelCol = MyColumnas - 1 - width / 2 + 1;
         if (height % 2 != 0)
             upParalelRow = MyFilas - 1 - height / 2;
-        if (width % 2 == 0)
-            leftParalelCol = MyColumnas - 1 - width / 2 + 1;
         if (width % 2 != 0)
             leftParalelCol = MyColumnas - 1 - width / 2;
-
         if (upParalelRow < 0 || upParalelRow > _info.Dimensions ||
             leftParalelCol < 0 || leftParalelCol > _info.Dimensions) return;
 
-        if (Pincel.Size == 1)
-        {
-            _info.SetWalle(leftParalelCol, upParalelRow);
-            // Grid.SetRow(_info.Walle, upParalelRow);
-            // Grid.SetColumn(_info.Walle, leftParalelCol);
-            DrawLine(1, 0, width + 1);
-            DrawLine(0, 1, height + 1);
-            DrawLine(-1, 0, width + 1);
-            DrawLine(0, -1, height + 1);
+        int incremento = (Pincel.Size - 1) / 2;
+        Grid.SetRow(_info.Walle, upParalelRow);
 
-            _info.SetWalle(MyColumnas, MyFilas);
-            // Grid.SetRow(_info.Walle, MyFilas);
-            // Grid.SetColumn(_info.Walle, MyColumnas);
-            return;
-        }
-        if (Pincel.Size > 1)
-        {
-            int incremento = (Pincel.Size - 1) / 2;
-            Grid.SetRow(_info.Walle, upParalelRow);
-            Grid.SetColumn(_info.Walle, leftParalelCol - incremento);
+        Grid.SetColumn(_info.Walle, leftParalelCol - incremento);
+        DrawLine(1, 0, width + 1 + incremento * 2);
+        Grid.SetColumn(_info.Walle, Grid.GetColumn(_info.Walle) - incremento);
 
-            DrawLine(1, 0, width + 1 + (incremento * 2));
-            Grid.SetColumn(_info.Walle, Grid.GetColumn(_info.Walle) - incremento);
+        Grid.SetRow(_info.Walle, Grid.GetRow(_info.Walle) - incremento);
+        DrawLine(0, 1, height + 1 + incremento * 2);
+        Grid.SetRow(_info.Walle, Grid.GetRow(_info.Walle) - incremento);
 
-            DrawLine(0, 1, height + 1 + incremento);
-            Grid.SetRow(_info.Walle, Grid.GetRow(_info.Walle) - incremento);
+        Grid.SetColumn(_info.Walle, Grid.GetColumn(_info.Walle) + incremento);
+        DrawLine(-1, 0, width + 1 + incremento * 2);
+        Grid.SetColumn(_info.Walle, Grid.GetColumn(_info.Walle) + incremento);
 
-            DrawLine(-1, 0, width + 1 + incremento);
-            Grid.SetColumn(_info.Walle, Grid.GetColumn(_info.Walle) + incremento);
+        Grid.SetRow(_info.Walle, Grid.GetRow(_info.Walle) + incremento);
+        DrawLine(0, -1, height + 1 + incremento * 2);
 
-            DrawLine(0, -1, height + 1 + incremento);
-        }
         _info.SetWalle(MyColumnas, MyFilas);
-        // Grid.SetRow(_info.Walle, MyFilas);
-        // Grid.SetColumn(_info.Walle, MyColumnas);
-
     }
     public void Fill()
     {
         bool[,] mask = new bool[_info.Dimensions, _info.Dimensions];
-        (int, int)[] direction = [(1, 0), (-1, 0), (0, 1), (-1, 0)];
+        (int, int)[] direction = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+        var myColorBrush = new SolidColorBrush(Avalonia.Media.Color.Parse(Pincel.Color));
         int WalleX = Grid.GetColumn(_info.Walle);
         int WalleY = Grid.GetRow(_info.Walle);
-        Fill(mask, direction, WalleX, WalleY);
-    }
-    public void Fill(bool[,] mask, (int, int)[] direction, int WalleX, int WalleY)
-    {
-
-        mask[WalleY, WalleX] = true;
         var color = _info.MyBorders[(WalleX, WalleY)].Background;
-        var myColorBrush = new SolidColorBrush(Color.Parse(Pincel.Color));
+        Fill(mask, direction, WalleX, WalleY, myColorBrush, color);
+        _info.SetWalle(WalleX, WalleY);
+    }
+    public void Fill(bool[,] mask, (int, int)[] direction, int WalleX, int WalleY, SolidColorBrush myColorBrush, IBrush? color)
+    {
+        mask[WalleX, WalleY] = true;
         _info.MyBorders[(WalleX, WalleY)].Background = myColorBrush;
 
         for (int i = 0; i < direction.Length; i++)
@@ -634,44 +782,66 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
             var nextY = WalleY + direction[i].Item2;
             if (nextX < 0 || nextX >= _info.Dimensions || nextY < 0 || nextY >= _info.Dimensions)
                 continue;
-            if (_info.MyBorders[(nextX, nextY)].Background != color)
+            var cellColor = _info.MyBorders[(nextX, nextY)].Background as SolidColorBrush;
+            var colorToRemplace = color as SolidColorBrush;
+
+            if (cellColor?.Color != colorToRemplace?.Color)
                 continue;
-            if (mask[nextY, nextX]) //TODO ver si es Walle Y-X o Next Y-X
+            if (mask[nextX, nextY]) //TODO ver si es Walle Y-X o Next Y-X
                 continue;
-            _info.SetWalle(nextX, nextY);
-            // Grid.SetColumn(_info.Walle, nextX);
-            // Grid.SetRow(_info.Walle, nextY);
-            Fill(mask, direction, nextX, nextY);
+            Fill(mask, direction, nextX, nextY, myColorBrush, color);
         }
     }
-    public void CallAction(string Name, object[] @params)
+    // public void Fill(bool[,] mask, (int, int)[] direction, int WalleX, int WalleY)
+    // {
+
+    //     mask[WalleY, WalleX] = true;
+    //     var color = _info.MyBorders[(WalleX, WalleY)].Background;
+    //     var myColorBrush = new SolidColorBrush(Color.Parse(Pincel.Color));
+    //     _info.MyBorders[(WalleX, WalleY)].Background = myColorBrush;
+
+    //     for (int i = 0; i < direction.Length; i++)
+    //     {
+    //         var nextX = WalleX + direction[i].Item1;
+    //         var nextY = WalleY + direction[i].Item2;
+    //         if (nextX < 0 || nextX >= _info.Dimensions || nextY < 0 || nextY >= _info.Dimensions)
+    //             continue;
+    //         if (_info.MyBorders[(nextX, nextY)].Background != color)
+    //             continue;
+    //         if (mask[nextX, nextY]) //TODO ver si es Walle Y-X o Next Y-X
+    //             continue;
+    //         _info.SetWalle(nextX, nextY);
+    //         // Grid.SetColumn(_info.Walle, nextX);
+    //         // Grid.SetRow(_info.Walle, nextY);
+    //         Fill(mask, direction, nextX, nextY);
+    //     }
+    // }
+    public void CallAction(string Name, object?[] @params)
     {
         switch (Name)
         {
             case "Spawn":
-                Spawn((int)@params[0], (int)@params[1]);
+                Spawn((int)@params[0]!, (int)@params[1]!);
                 return;
-            case "BrushColor":
-                BrushColor((string)@params[0]);
+            case "Color":
+                Color((string)@params[0]!);
                 return;
             case "Size":
-                Size((int)@params[0]);
+                Size((int)@params[0]!);
                 return;
             case "DrawLine":
-                DrawLine((int)@params[0], (int)@params[1], (int)@params[2]);
+                DrawLine((int)@params[0]!, (int)@params[1]!, (int)@params[2]!);
                 return;
             case "DrawCircle":
-                DrawCircle((int)@params[0], (int)@params[1], (int)@params[2]);
+                DrawCircle((int)@params[0]!, (int)@params[1]!, (int)@params[2]!);
                 return;
             case "DrawRectangle":
-                DrawRectangle((int)@params[0], (int)@params[1], (int)@params[2], (int)@params[3], (int)@params[4]);
+                DrawRectangle((int)@params[0]!, (int)@params[1]!, (int)@params[2]!, (int)@params[3]!, (int)@params[4]!);
                 return;
             case "Fill":
                 Fill();
                 return;
-            default: throw new NotImplementedException();
+            default: throw new Exception("El metodo no existe o ha sido mal llamado");
         }
     }
-
-    //TODO hacer un switch por los metodos implementados en esta clase
 }
