@@ -2,11 +2,12 @@ using Compiler.Interfaces;
 
 namespace Compiler.Language.Expressions;
 
-public class Literal<T>(T value) : IExpression<T>
+public class Literal(DinamicType value, Location location) : IExpression
 {
-    public T Value { get; } = value;
+    public  DinamicType Value { get; } = value;
+    public Location Location { get; } = location;
 
-    public T Excute(Context context)
+    public  DinamicType Excute(Context context)
     {
         return Value;
     }

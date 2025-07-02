@@ -8,7 +8,7 @@ public class Tokenizador
     #region Patterns
 
     public static readonly string id = @"[a-zA-Z][a-zA-Z0-9_]*";
-    public readonly string label = $"{id}\r?\n";
+    public readonly string label = $"\r?\n{id}\r?\n";
     public readonly string num = @"\d+";
     public readonly string str = @"""[^""]*""";
     public readonly string otherOp = @"\*\*";
@@ -34,7 +34,7 @@ public class Tokenizador
         foreach (Match match in matches.Cast<Match>())
         {
             var value = match.Value;
-            var type = GetTokenType(value);
+            var type = GetTokenType(value, col);
             if (type is not TokenType.EndLine && string.IsNullOrEmpty(value.Trim()))
             {
                 col += match.Length;
@@ -42,8 +42,9 @@ public class Tokenizador
             }
             if (type is TokenType.Error)
             {
+                int actualCol = col;
                 col += match.Length;
-                tokenException.Add(new Exception($"El caracter '{value}' no es valido"));
+                tokenException.Add(new Exception($"Error en {line}, {actualCol}: El caracter '{value}' no es valido"));
                 continue;
             }
             if (type is TokenType.Label)
@@ -60,7 +61,7 @@ public class Tokenizador
         return [.. tokens];
     }
 
-    private TokenType GetTokenType(string value)
+    private TokenType GetTokenType(string value, int col)
     {
         switch (value)
         {

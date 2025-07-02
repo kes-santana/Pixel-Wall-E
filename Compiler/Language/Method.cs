@@ -2,16 +2,17 @@ using Compiler.Interfaces;
 
 namespace Compiler.Language;
 
-public class Method(string name, IExpression<object?>[] @params) : IInstruction
+public class ActionMethod(string name, IExpression[] @params, Location location) : IInstruction
 {
     public string Name { get; } = name;
-    public IExpression<object?>[] Params { get; } = @params;
+    public IExpression[] Params { get; } = @params;
+    public Location Location { get; } = location;
 
     public void Excute(Context context)
     {
         object?[] values = new object[Params.Length];
         for (int i = 0; i < values.Length; i++)
-            values[i] = Params[i].Excute(context);
-        context.ContextAction.CallAction(Name, values);
+            values[i] = Params[i].Excute(context).dinamicValue;
+        context.ContextAction.CallAction(Name, values, Location);
     }
 }

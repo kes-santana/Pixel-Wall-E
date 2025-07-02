@@ -14,6 +14,10 @@ using Avalonia.Platform;
 using Compiler.Language;
 using Avalonia.Input;
 using System.Text;
+using Location = Compiler.Language.Location;
+using System.Reflection;
+using System.Linq;
+using System.Linq.Expressions;
 
 
 namespace Visual;
@@ -95,28 +99,37 @@ public partial class MainWindow : Window, ICanvasInfo
     }
     public void TextEditor_TextChanged(object sender, EventArgs e)
     {
-        // TODO Probarlo bien con todas las funciones del pdf y mostrar errores parser y tokenizador
+        errorBar.Text = "";
+        exceptions.Clear();
+
         var parser = new Parser();
-        var context = new Context(functions, actions);
         var tokenizador = new Tokenizador();
 
         var code = textEditor.Text;
         var tokens = tokenizador.Tokenizar(code);
         var ast = parser.Parse(tokens);    //es ast pero es un bloque
 
+        var sb = new StringBuilder();
+        if (Dimensions == 0)
+            exceptions.Add(new Exception("Debe generar el tablero antes de ejecutar el programa"));
 
-        // Añadir lista de errores en el visual
-        // StringBuilder sb = new();
-        // foreach (var item in parser.ParserErrors)
-        // {
-        //     sb.AppendLine(item.Message);
-        // }
-        // TODO ErrorArea.Text = sb.ToString();
+        if ((ast as Block)!.Instructions.Count == 0 || (ast as Block)!.Instructions[0] is not ActionMethod method || !method.Name.Equals("spawn", StringComparison.CurrentCultureIgnoreCase))
+            exceptions.Add(new Exception("Debe comenzar el bloque de instrucciones con la instruccion 'Spawn' "));
+        else if (method.Name != "Spawn")
+            exceptions.Add(new Exception("El metodo 'Spawn' ha sido mal llamado"));
+
+        foreach (var err in exceptions.Concat(parser.ParserErrors).Concat(tokenizador.tokenException))
+        {
+            sb.AppendLine($"{err.Message}");
+        }
+
+        errorBar.Document.Text = sb.ToString();
     }
     public void PlayButton_Click(object sender, RoutedEventArgs e)
     {
         errorBar.Text = "";
         exceptions.Clear();
+
         var parser = new Parser();
         var context = new Context(functions, actions);
         var tokenizador = new Tokenizador();
@@ -125,53 +138,33 @@ public partial class MainWindow : Window, ICanvasInfo
         var tokens = tokenizador.Tokenizar(code);
         var ast = parser.Parse(tokens);
 
+        var sb = new StringBuilder();
+
+        if (Dimensions == 0)
+            exceptions.Add(new Exception("Debe generar el tablero antes de ejecutar el programa"));
+
+        if ((ast as Block)!.Instructions.Count == 0 || (ast as Block)!.Instructions[0] is not ActionMethod method || !method.Name.Equals("spawn", StringComparison.CurrentCultureIgnoreCase))
+            exceptions.Add(new Exception("Debe comenzar el bloque de instrucciones con la instruccion 'Spawn' "));
+        else if (method.Name != "Spawn")
+            exceptions.Add(new Exception("El metodo 'Spawn' ha sido mal llamado"));
+
+        foreach (var err in exceptions.Concat(parser.ParserErrors).Concat(tokenizador.tokenException))
+        {
+            sb.AppendLine($"{err.Message}");
+        }
+
         try
         {
-            if (Dimensions == 0)
-                exceptions.Add
-                (new Exception("Debe generar el tablero antes de ejecutar el programa"));
-
-            if ((ast as Block)!.Instructions[0] is not Method method
-                || method.Name != "Spawn" && method.Name != "spawn")
-            {
-                exceptions.Add(new Exception("Debe comenzar el bloque de instrucciones con la instruccion 'Spawn' "));
-            }
-
-            if ((ast as Block)!.Instructions[0] is not Method metodo ||
-                 metodo.Name != "Spawn" && metodo.Name == "spawn")
-                exceptions.Add(new Exception("El metodo 'Spawn' ha sido mal llamado"));
-
             ast.Excute(context);
-            if (parser.ParserErrors.Count != 0)
-                throw parser.ParserErrors[0];
-
-            if (tokenizador.tokenException.Count != 0)
-                throw tokenizador.tokenException[0];
         }
         catch (Exception exc)
         {
-            // TODO: agregar todos los errores y la (linea,columna) en la que estan
-            // var message = exc.Message;
-            // errorBar.Text = message;
-
-            var sb = new StringBuilder();
-
-            foreach (var err in exceptions)
-            {
-                sb.AppendLine($"{err.Message}");
-            }
-
-            foreach (var err in parser.ParserErrors)
-            {
-                sb.AppendLine($"{err.Message}");
-            }
-            foreach (var err in tokenizador.tokenException)
-            {
-                sb.AppendLine($"{err.Message}");
-            }
+            exc = exc is TargetInvocationException ? exc.InnerException! : exc;
             // Mensaje principal de la excepción atrapada
             sb.AppendLine($"{exc.Message}");
-
+        }
+        finally
+        {
             errorBar.Document.Text = sb.ToString();
             ProblemWindow.IsVisible = true;
         }
@@ -257,7 +250,7 @@ public partial class MainWindow : Window, ICanvasInfo
                 bitmap = new Bitmap(stream);
             }
         }
-        RemoveWalle();
+
 
         var wallPicture = new ImageBrush
         {
@@ -302,6 +295,13 @@ public partial class MainWindow : Window, ICanvasInfo
         // MyCanvas.Children.Add(Walle); iba aqui pero lo quite porque sino cuando seteara a walle 
         // con este metodo iba a crear otro border
     }
+    public bool IsValidSetWalle() => WalleCanvas.Children.Contains(Walle);
+    public Exception BuildExeptionMassege(string name, object?[] @params, string strParams, Location location)
+    {
+        var template = ExceptionTemplates.PARAMETERS1;
+        string massege = string.Format(template, name, @params.Length, strParams, location);
+        return new InvalidOperationException(massege);
+    }
 }
 
 public interface ICanvasInfo
@@ -312,7 +312,8 @@ public interface ICanvasInfo
     void CreateWalle();
     void RemoveWalle();
     void SetWalle(int x, int y);
-
+    bool IsValidSetWalle();
+    Exception BuildExeptionMassege(string name, object?[] @params, string strParams, Location location);
 }
 public class FunctionMethods(ICanvasInfo info) : IContextFunction
 {
@@ -374,14 +375,21 @@ public class FunctionMethods(ICanvasInfo info) : IContextFunction
         var castColor = _info.MyBorders[(columna, fila)].Background as SolidColorBrush;
         return castColor?.Color == MyColor?.Color ? 1 : 0;
     }
-    public object CallFunction(string Name, object?[] @params) => Name switch
+    public object CallFunction(string Name, object?[] @params, Location location) => Name switch
     {
+        "GetActualY" when @params.Length != 0 => throw _info.BuildExeptionMassege(Name, @params, "", location),
         "GetActualY" => GetActualY(),
+        "GetActualX" when @params.Length != 0 => throw _info.BuildExeptionMassege(Name, @params, "", location),
         "GetActualX" => GetActualX(),
+        "GetCanvasSize" when @params.Length != 0 => throw _info.BuildExeptionMassege(Name, @params, "", location),
         "GetCanvasSize" => GetCanvasSize(),
+        "GetColorCount" when @params.Length != 5 => throw _info.BuildExeptionMassege(Name, @params, "string a, int b, int c, int d, int e", location),
         "GetColorCount" => GetColorCount((string)@params[0]!, (int)@params[1]!, (int)@params[2]!, (int)@params[3]!, (int)@params[4]!),
+        "IsBrushColor" when @params.Length != 1 => throw _info.BuildExeptionMassege(Name, @params, "string a", location),
         "IsBrushColor" => IsBrushColor((string)@params[0]!),
+        "IsBrushSize" when @params.Length != 1 => throw _info.BuildExeptionMassege(Name, @params, "int a", location),
         "IsBrushSize" => IsBrushSize((int)@params[0]!),
+        "IsCanvasColor" when @params.Length != 3 => throw _info.BuildExeptionMassege(Name, @params, "string a, int b,int c", location),
         "IsCanvasColor" => IsCanvasColor((string)@params[0]!, (int)@params[1]!, (int)@params[2]!),
         _ => new Exception("El metodo no existe o ha sido mal llamado"),
     };
@@ -390,9 +398,11 @@ public class FunctionMethods(ICanvasInfo info) : IContextFunction
 public class ActionMethods(ICanvasInfo info) : IContextAction
 {
     private readonly ICanvasInfo _info = info;
-    
+
     public void Spawn(int x, int y)
     {
+        if (_info.IsValidSetWalle())
+            throw new Exception("Solo puede invocar el metodo 'Spawn' una vez");
         _info.CreateWalle();
         _info.SetWalle(x, y);
 
@@ -490,8 +500,11 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
                 Pincel.Color = "Black";
                 return;
 
-            case "\"White\"" or "\"Transparent\"":
+            case "\"White\"":
                 Pincel.Color = "White";
+                return;
+            case "\"Transparent\"":
+                Pincel.Color = "Transparent";
                 return;
         }
     }
@@ -787,57 +800,64 @@ public class ActionMethods(ICanvasInfo info) : IContextAction
 
             if (cellColor?.Color != colorToRemplace?.Color)
                 continue;
-            if (mask[nextX, nextY]) //TODO ver si es Walle Y-X o Next Y-X
+            if (mask[nextX, nextY])
                 continue;
             Fill(mask, direction, nextX, nextY, myColorBrush, color);
         }
     }
-    // public void Fill(bool[,] mask, (int, int)[] direction, int WalleX, int WalleY)
-    // {
-
-    //     mask[WalleY, WalleX] = true;
-    //     var color = _info.MyBorders[(WalleX, WalleY)].Background;
-    //     var myColorBrush = new SolidColorBrush(Color.Parse(Pincel.Color));
-    //     _info.MyBorders[(WalleX, WalleY)].Background = myColorBrush;
-
-    //     for (int i = 0; i < direction.Length; i++)
-    //     {
-    //         var nextX = WalleX + direction[i].Item1;
-    //         var nextY = WalleY + direction[i].Item2;
-    //         if (nextX < 0 || nextX >= _info.Dimensions || nextY < 0 || nextY >= _info.Dimensions)
-    //             continue;
-    //         if (_info.MyBorders[(nextX, nextY)].Background != color)
-    //             continue;
-    //         if (mask[nextX, nextY]) //TODO ver si es Walle Y-X o Next Y-X
-    //             continue;
-    //         _info.SetWalle(nextX, nextY);
-    //         // Grid.SetColumn(_info.Walle, nextX);
-    //         // Grid.SetRow(_info.Walle, nextY);
-    //         Fill(mask, direction, nextX, nextY);
-    //     }
-    // }
-    public void CallAction(string Name, object?[] @params)
+    public void CallAction(string Name, object?[] @params, Location location)
     {
+        var template = ExceptionTemplates.PARAMETERS1;
+        string strParams;
+        string message;
         switch (Name)
         {
+            case "Spawn" when @params.Length != 2:
+                strParams = "int a, int b";
+                message = string.Format(template, Name, @params.Length, strParams, location);
+                throw new InvalidOperationException(message);
             case "Spawn":
                 Spawn((int)@params[0]!, (int)@params[1]!);
                 return;
+            case "Color" when @params.Length != 1:
+                strParams = "string a";
+                message = string.Format(template, Name, @params.Length, strParams, location);
+                throw new InvalidOperationException(message);
             case "Color":
                 Color((string)@params[0]!);
                 return;
+            case "Size" when @params.Length != 1:
+                strParams = "int a";
+                message = string.Format(template, Name, @params.Length, strParams, location);
+                throw new InvalidOperationException(message);
             case "Size":
                 Size((int)@params[0]!);
                 return;
+            case "DrawLine" when @params.Length != 3:
+                strParams = "int a, int b, int c";
+                message = string.Format(template, Name, @params.Length, strParams, location);
+                throw new InvalidOperationException(message);
             case "DrawLine":
                 DrawLine((int)@params[0]!, (int)@params[1]!, (int)@params[2]!);
                 return;
+            case "DrawCircle" when @params.Length != 3:
+                strParams = "int a, int b, int c";
+                message = string.Format(template, Name, @params.Length, strParams, location);
+                throw new InvalidOperationException(message);
             case "DrawCircle":
                 DrawCircle((int)@params[0]!, (int)@params[1]!, (int)@params[2]!);
                 return;
+            case "DrawRectangle" when @params.Length != 5:
+                strParams = "int a, int b, int c, int d, int e";
+                message = string.Format(template, Name, @params.Length, strParams, location);
+                throw new InvalidOperationException(message);
             case "DrawRectangle":
                 DrawRectangle((int)@params[0]!, (int)@params[1]!, (int)@params[2]!, (int)@params[3]!, (int)@params[4]!);
                 return;
+            case "Fill" when @params.Length != 0:
+                strParams = "Este metodo no requiere parametros";
+                message = string.Format(template, Name, @params.Length, strParams, location);
+                throw new InvalidOperationException(message);
             case "Fill":
                 Fill();
                 return;

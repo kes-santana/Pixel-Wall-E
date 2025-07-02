@@ -1,8 +1,10 @@
+using Compiler.Language;
+
 namespace Compiler;
 
 public class Context(IContextFunction contextFunction, IContextAction contextAction)
 {
-    public Dictionary<string, object> Variables { get; set; } = [];
+    public Dictionary<string, DinamicType> Variables { get; set; } = [];
     public Dictionary<string, int> Labels { get; set; } = [];
     public IContextFunction ContextFunction { get; } = contextFunction;
     public IContextAction ContextAction { get; } = contextAction;
@@ -12,10 +14,10 @@ public class Context(IContextFunction contextFunction, IContextAction contextAct
 
 public interface IContextFunction
 {
-    object CallFunction(string Name, object?[] @params);
+    object CallFunction(string Name, object?[] @params, Location location);
 }
 
 public interface IContextAction
 {
-    void CallAction(string Name, object?[] @params);
+    void CallAction(string Name, object?[] @params, Location location);
 }

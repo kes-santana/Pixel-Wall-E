@@ -11,7 +11,7 @@ public class Parser
     int tokenIndex;
     public List<Exception> ParserErrors = [];
 
-    public delegate IExpression<T>? GetExpression<T>(Token[] tokens);
+    public delegate IExpression? GetExpression(Token[] tokens);
 
     public IInstruction Parse(Token[] tokens)
     {
@@ -47,6 +47,8 @@ public class Parser
 
     private void JumpInstruction(Token[] tokens)
     {
+        // TODO: si el error es general, poner un exception aqui que diga que la linea dio error
+        // Sabes que es un error cuando lo que viene no es un cambio de linea
         while (!TokenMatch(tokens, TokenType.EndLine))
         {
             tokenIndex++;
@@ -57,34 +59,42 @@ public class Parser
     #region Terminar
     private IInstruction? ParseMethod(Token[] tokens)
     {
-        var name = tokens[tokenIndex].Value;
-        List<IExpression<object?>> parameters = [];
-        if (!ParseMethodA(tokens, parameters))
+        var token = tokens[tokenIndex];
+        List<IExpression> parameters = [];
+        if (!TokenMatch(tokens, TokenType.Identificador) || !TokenMatch(tokens, TokenType.ParentesisAbierto) || !ParseMethodA(tokens, parameters))
             return default;
-        IExpression<object?>[] myParams = [.. parameters];
-        return new Method(name, myParams);
+        IExpression[] myParams = [.. parameters];
+        var location = new Location()
+        {
+            Row = token.Row + 1,
+            StartColumn = token.Col,
+            EndColumn = tokens[tokenIndex - 1].Col
+        };
+        return new ActionMethod(token.Value, myParams, location);
     }
-
-    private IExpression<T>? ParseMethodWith<T>(Token[] tokens)
+    private IExpression? ParseMethodWith(Token[] tokens)
     {
         int startIndex = tokenIndex;
-        var name = tokens[tokenIndex].Value;
-        List<IExpression<object?>> parameters = [];
-        if (!ParseMethodA(tokens, parameters))
+        var token = tokens[tokenIndex];
+        List<IExpression> parameters = [];
+        if (!TokenMatch(tokens, TokenType.Identificador) || !TokenMatch(tokens, TokenType.ParentesisAbierto))
         {
             tokenIndex = startIndex;
             return default;
         }
-        IExpression<object?>[] myParams = [.. parameters];
-        return new Method<T>(name, myParams);
+        if (!ParseMethodA(tokens, parameters))
+            return default;
+        IExpression[] myParams = [.. parameters];
+        var location = new Location()
+        {
+            Row = token.Row + 1,
+            StartColumn = token.Col,
+            EndColumn = tokens[tokenIndex - 1].Col,
+        };
+        return new FunctionMethod(token.Value, myParams, location);
     }
-    private bool ParseMethodA(Token[] tokens, List<IExpression<object?>> parameters)
+    private bool ParseMethodA(Token[] tokens, List<IExpression> parameters)
     {
-        if (!TokenMatch(tokens, TokenType.Identificador))
-            return false;
-        // primer parentesis
-        if (!TokenMatch(tokens, TokenType.ParentesisAbierto))
-            return false;
         //  parametros
         Parameters(tokens, parameters);
         // segundo parentesis
@@ -96,31 +106,60 @@ public class Parser
         return true;
     }
 
-    private void Parameters(Token[] tokens, List<IExpression<object?>> @params)
+    private void Parameters(Token[] tokens, List<IExpression> @params)
     {
+        var startIndex = tokenIndex;
         if (!TokenMatch(tokens, TokenType.Identificador))
         {
-            var num = ParseResta(tokens);
+            var num = ParseNumber(tokens);
 
             if (num is not null)
             {
-                @params.Add(new ConvertExpression<int>(num));
+                var location1 = new Location()
+                {
+                    Row = tokens[startIndex].Row + 1,
+                    StartColumn = tokens[startIndex].Col,
+                    EndColumn = tokens[tokenIndex - 1].Col,
+                };
+                @params.Add(new ConvertExpression<int>(num, location1));
                 RevisarParams(tokens, @params);
                 return;
             }
 
             if (!TokenMatch(tokens, TokenType.String))
                 return;
-            object value = tokens[tokenIndex - 1].Value;
-            @params.Add(new Literal<object?>(value));
+            var location2 = new Location()
+            {
+                Row = tokens[startIndex].Row + 1,
+                StartColumn = tokens[startIndex].Col,
+                EndColumn = tokens[tokenIndex - 1].Col,
+            };
+            var value = new DinamicType(tokens[tokenIndex - 1].Value);
+            @params.Add(new Literal(value, location2));
             RevisarParams(tokens, @params);
             return;
         }
-        @params.Add(new Variable<object?>(tokens[tokenIndex - 1].Value));
+        if (TokenMatch(tokens, TokenType.ParentesisAbierto))
+        {
+            tokenIndex -= 2;
+            var exp = ParseMethodWith(tokens);
+            if (exp is not null)
+            {
+                @params.Add(exp);
+                RevisarParams(tokens, @params);
+                return;
+            }
+        }
+        var location3 = new Location()
+        {
+            Row = tokens[startIndex].Row + 1,
+            StartColumn = tokens[startIndex].Col,
+            EndColumn = tokens[tokenIndex - 1].Col,
+        };
+        @params.Add(new Variable(tokens[tokenIndex - 1].Value, location3));
         RevisarParams(tokens, @params);
     }
-
-    private void RevisarParams(Token[] tokens, List<IExpression<object?>> @params)
+    private void RevisarParams(Token[] tokens, List<IExpression> @params)
     {
         var index = tokenIndex;
         if (TokenMatch(tokens, TokenType.EndLine))
@@ -140,9 +179,9 @@ public class Parser
         }
         Parameters(tokens, @params);
     }
-
     private IInstruction? ParseGoto(Token[] tokens)
     {
+        int startIndex = tokenIndex;
         if (!TokenMatch(tokens, TokenType.GoTo))
             return default;
 
@@ -183,7 +222,14 @@ public class Parser
             ParserErrors.Add(new Exception("Se esperaba )"));
             return default;
         }
-        return new Goto(target, cond);
+
+        var location = new Location()
+        {
+            Row = tokens[startIndex].Row + 1,
+            StartColumn = tokens[startIndex].Col,
+            EndColumn = tokens[tokenIndex - 1].Col
+        };
+        return new Goto(target, cond, location);
     }
 
     #endregion
@@ -192,11 +238,17 @@ public class Parser
         var token = tokens[tokenIndex];
         if (!TokenMatch(tokens, TokenType.Label))
             return default;
-
-        return new Label(token.Value, token.Row);
+        var location = new Location()
+        {
+            Row = token.Row + 1,
+            StartColumn = token.Col,
+            EndColumn = tokens[tokenIndex - 1].Col
+        };
+        return new Label(token.Value, token.Row, location);
     }
     private IInstruction? ParseAssign(Token[] tokens)
     {
+        int actualIndex = tokenIndex;
         var token = tokens[tokenIndex];
         var name = token.Value;
         if (token.Type is not TokenType.Identificador)
@@ -208,65 +260,107 @@ public class Parser
             return default;
         }
         tokenIndex++;
-        return GetAssign(tokens, name);
+        var exp = GetAssign(tokens, name);
+        if (exp is not null)
+            return exp;
+        tokenIndex = actualIndex;
+        return default;
     }
     private IInstruction? GetAssign(Token[] tokens, string name)
     {
         int actualIndex = tokenIndex;
-        IExpression<bool>? boolean = ParseBoolean(tokens);
-        if (boolean is not null && TokenMatch(tokens, TokenType.EndLine))
-            return new Assign<bool>(name, boolean);
+        IExpression? num = ParseNumber(tokens);
+        if (TokenMatch(tokens, TokenType.EndLine))
+        {
+            if (num is null)
+                return default;
+            var location = new Location()
+            {
+                Row = tokens[tokenIndex - 2].Row,
+                StartColumn = tokens[tokenIndex - 2].Col,
+                EndColumn = tokens[tokenIndex - 1].Col
+            };
+            return new Assign(name, num, location);
+        }
 
         tokenIndex = actualIndex;
-        IExpression<int>? num = ParseNumber(tokens);
-        if (num is not null && TokenMatch(tokens, TokenType.EndLine))
-            return new Assign<int>(name, num);
+        IExpression? str = ParseColor(tokens);
+        if (TokenMatch(tokens, TokenType.EndLine))
+        {
+            if (str is null)
+                return default;
+            var location = new Location()
+            {
+                Row = tokens[tokenIndex - 2].Row,
+                StartColumn = tokens[tokenIndex - 2].Col,
+                EndColumn = tokens[tokenIndex - 1].Col
+            };
+            return new Assign(name, str, location);
+        }
 
         tokenIndex = actualIndex;
-        IExpression<string>? str = ParseColor(tokens);
-        if (str is not null && TokenMatch(tokens, TokenType.EndLine))
-            return new Assign<string>(name, str);
+        IExpression? boolean = ParseBoolean(tokens);
+        if (TokenMatch(tokens, TokenType.EndLine))
+        {
+            if (boolean is null)
+                return default;
+            var location = new Location()
+            {
+                Row = tokens[tokenIndex - 2].Row,
+                StartColumn = tokens[tokenIndex - 2].Col,
+                EndColumn = tokens[tokenIndex - 1].Col
+            };
+            return new Assign(name, boolean, location);
+        }
 
+        var location1 = new Location()
+        {
+            Row = tokens[tokenIndex - 2].Row,
+            StartColumn = tokens[tokenIndex - 2].Col,
+            EndColumn = tokens[tokenIndex - 1].Col
+        };
         tokenIndex = actualIndex;
+
+        ParserErrors.Add(new Exception($"Debe asignar un valor a la variable '{name}'. {location1}"));
         return default;
     }
 
-    private IExpression<string>? ParseColor(Token[] tokens)
-        => ParseLiteral<string>(tokens, TokenType.String);
+    private IExpression? ParseColor(Token[] tokens)
+        => ParseLiteral(tokens);
 
     #region Arithmetics
 
-    private IExpression<int>? ParseNumber(Token[] tokens) => ParseSum(tokens);
-    private IExpression<int>? ParseSum(Token[] tokens)
+    private IExpression? ParseNumber(Token[] tokens) => ParseSum(tokens);
+    private IExpression? ParseSum(Token[] tokens)
     {
         return ParseBuild(tokens, ParseMult, [TokenType.Suma, TokenType.Resta]);
     }
-    private IExpression<int>? ParseMult(Token[] tokens)
+    private IExpression? ParseMult(Token[] tokens)
     {
         return ParseBuild(tokens, ParsePow, [TokenType.Mult, TokenType.Module, TokenType.Div]);
     }
-    private IExpression<int>? ParsePow(Token[] tokens)
+    private IExpression? ParsePow(Token[] tokens)
     {
-        return ParseBuild(tokens, ParseNumLiteral, [TokenType.Exp]);
+        return ParseBuild(tokens, ParseResta, [TokenType.Exp]);
     }
-    private IExpression<int>? ParseNumLiteral(Token[] tokens)
-        => ParseLiteral<int>(tokens, TokenType.Num);
+    // private IExpression? ParseNumLiteral(Token[] tokens)
+    //     => ParseResta(tokens);
     #endregion
 
     #region Booleans and Comparisons
-    private IExpression<bool>? ParseBoolean(Token[] tokens) => ParseOr(tokens);
+    private IExpression? ParseBoolean(Token[] tokens) => ParseOr(tokens);
 
-    private IExpression<bool>? ParseOr(Token[] tokens)
+    private IExpression? ParseOr(Token[] tokens)
     {
         return ParseBuild(tokens, ParseAnd, [TokenType.Or]);
     }
 
-    private IExpression<bool>? ParseAnd(Token[] tokens)
+    private IExpression? ParseAnd(Token[] tokens)
     {
         return ParseBuild(tokens, ParseBoolLiteral, [TokenType.And]);
     }
 
-    private IExpression<bool>? Comparacion(Token[] tokens)
+    private IExpression? Comparacion(Token[] tokens)
     {
         var left = ParseNumber(tokens);
         if (left == null)
@@ -286,25 +380,24 @@ public class Parser
         return new ComparationBoolExpression(left, right, ToBinaryTypes(op.Value));
     }
 
-    private IExpression<bool>? ParseBoolLiteral(Token[] tokens) =>
-        Comparacion(tokens) ?? ParseLiteral<bool>(tokens, TokenType.Boolean);
+    private IExpression? ParseBoolLiteral(Token[] tokens) =>
+        Comparacion(tokens) ?? ParseLiteral(tokens);
     #endregion
 
     #region  Tools
-    private IExpression<T>? ParseBuild<T>(Token[] tokens, GetExpression<T> NextLevel, TokenType[] types)
+    private IExpression? ParseBuild(Token[] tokens, GetExpression NextLevel, TokenType[] types)
     {
+        // Este metodo construye el nodo buscando un left y rigth
         var startIndex = tokenIndex;
         var left = NextLevel(tokens);
         if (left is null)
-        {
-            tokenIndex = startIndex;
             return default;
-        }
         return ParseBuild(tokens, left, NextLevel, types);
     }
 
-    private IExpression<T>? ParseBuild<T>(Token[] tokens, IExpression<T> left, GetExpression<T> NextLevel, TokenType[] types)
+    private IExpression? ParseBuild(Token[] tokens, IExpression left, GetExpression NextLevel, TokenType[] types)
     {
+        // Este metodo construye el nodo a partir de un left y buscando un rigth
         var op = MatchOperator(tokens, types);
         if (op is null)
             return left;
@@ -314,48 +407,39 @@ public class Parser
             return Shift(tokens, left, NextLevel, type, types);
         return Reduce(tokens, left, NextLevel, type, types);
     }
-    private IExpression<T>? Shift<T>(Token[] tokens, IExpression<T> left, GetExpression<T> NextLevel, BinaryTypes type, TokenType[] types)
+    private IExpression? Shift(Token[] tokens, IExpression left, GetExpression NextLevel, BinaryTypes type, TokenType[] types)
     {
-        IExpression<T>? right;
+        IExpression? right;
         right = ParseBuild(tokens, NextLevel, types);
         if (right is null)
             return default;
-        return BuildExpression<T, T>(left, right, type);
+        return BuildExpression(left, right, type);
     }
-    private IExpression<T>? Reduce<T>(Token[] tokens, IExpression<T> left, GetExpression<T> NextLevel, BinaryTypes type, TokenType[] types)
+    private IExpression? Reduce(Token[] tokens, IExpression left, GetExpression NextLevel, BinaryTypes type, TokenType[] types)
     {
-        IExpression<T>? right;
+        IExpression? right;
         right = NextLevel(tokens);
         if (right is null)
             return default;
-        var exp = BuildExpression<T, T>(left, right, type);
+        var exp = BuildExpression(left, right, type);
         if (exp is null)
             return default;
         return ParseBuild(tokens, exp, NextLevel, types);
     }
-    private IExpression<T>? BuildExpression<T, K>(IExpression<K> left, IExpression<K> right, BinaryTypes type)
+    private IExpression? BuildExpression(IExpression left, IExpression right, BinaryTypes type)
     {
         return type switch
         {
             BinaryTypes.Sum or BinaryTypes.Resta or BinaryTypes.Mult or
             BinaryTypes.Div or BinaryTypes.Potencia or BinaryTypes.Modulo
-                => new BinaryAritmeticExpression(
-                    (left as IExpression<int>)!,
-                    (right as IExpression<int>)!,
-                    type) as IExpression<T>,
+                => new BinaryAritmeticExpression(left, right, type),
 
             BinaryTypes.And or BinaryTypes.Or
-                => new BinaryBooleanExpression(
-                    (left as IExpression<bool>)!,
-                    (right as IExpression<bool>)!,
-                    type) as IExpression<T>,
+                => new BinaryBooleanExpression(left, right, type),
 
             BinaryTypes.Equal or BinaryTypes.Diferent or
             BinaryTypes.MajorEqual or BinaryTypes.MinorEqual
-                => new ComparationBoolExpression(
-                    (left as IExpression<int>)!,
-                    (right as IExpression<int>)!,
-                    type) as IExpression<T>,
+                => new ComparationBoolExpression(left, right, type),
             _ => throw new NotImplementedException(),
         };
     }
@@ -382,22 +466,6 @@ public class Parser
         };
     }
 
-    private IExpression<T>? ParseLiteral<T>(Token[] tokens, TokenType type)
-        where T : IParsable<T>
-    {
-        var token = tokens[tokenIndex];
-        if (TokenMatch(tokens, type))
-        {
-            T myBool = T.Parse(token.Value, null);
-            return new Literal<T>(myBool);
-        }
-        var exp = ParseMethodWith<T>(tokens);
-        if (exp != null)
-            return exp;
-        if (TokenMatch(tokens, TokenType.Identificador))
-            return new Variable<T>(token.Value);
-        return default;
-    }
 
     public TokenType? MatchOperator(Token[] tokens, TokenType[] types)
     {
@@ -408,7 +476,6 @@ public class Parser
         }
         return null;
     }
-
     private bool TokenMatch(Token[] tokens, TokenType type)
     {
         if (tokens[tokenIndex].Type != type)
@@ -426,8 +493,36 @@ public class Parser
         BinaryTypes.Or;
 
     #endregion
-
-    public IExpression<int>? ParseResta(Token[] tokens)
+    private IExpression? ParseLiteral(Token[] tokens)
+    {
+        var token = tokens[tokenIndex];
+        if (DinamicType.TryParse(token.Value, token.Type, out var value))
+        {
+            tokenIndex++;
+            var location = new Location()
+            {
+                Row = token.Row + 1,
+                StartColumn = token.Col,
+                EndColumn = tokens[tokenIndex - 1].Col
+            };
+            return new Literal(value!, location);
+        }
+        var exp = ParseMethodWith(tokens);
+        if (exp != null)
+            return exp;
+        if (TokenMatch(tokens, TokenType.Identificador))
+        {
+            var location = new Location()
+            {
+                Row = token.Row + 1,
+                StartColumn = token.Col,
+                EndColumn = tokens[tokenIndex - 1].Col
+            };
+            return new Variable(token.Value, location);
+        }
+        return default;
+    }
+    public IExpression? ParseResta(Token[] tokens)
     {
         int count = 0;
         while (TokenMatch(tokens, TokenType.Resta))
@@ -435,25 +530,38 @@ public class Parser
             count++;
         }
         if (count % 2 == 0)
-            return ParseLiteral<int>(tokens, TokenType.Num);
-        return ParseLiteralNegativo<int>(tokens, TokenType.Num);
+            return ParseLiteral(tokens);
+        return ParseLiteralNegativo(tokens);
     }
 
-    private IExpression<int>? ParseLiteralNegativo<T>(Token[] tokens, TokenType type)
-            where T : IParsable<T>
+    private IExpression? ParseLiteralNegativo(Token[] tokens)
     {
+        IExpression? exp;
         var token = tokens[tokenIndex];
-        if (TokenMatch(tokens, type))
+        bool myBool = DinamicType.TryParse(token.Value, token.Type, out var value);
+        if (myBool)
         {
-            bool myBool = int.TryParse(token.Value, out int a);
-            if (myBool)
-                return new Literal<int>(a * (-1));
+            tokenIndex++;
+            var location1 = new Location()
+            {
+                Row = token.Row + 1,
+                StartColumn = token.Col,
+                EndColumn = tokens[tokenIndex - 1].Col,
+            };
+            exp = new Literal(value!, location1);
+            return new UnaryAritmeticExpression(exp, UnaryType.Negativo);
         }
-        var exp = ParseMethodWith<int>(tokens);
-        if (exp != null)
-            return new BinaryAritmeticExpression(new Literal<int>(0), exp, BinaryTypes.Resta);
-        if (TokenMatch(tokens, TokenType.Identificador))
-            return new BinaryAritmeticExpression(new Literal<int>(0), new Variable<int>(token.Value), BinaryTypes.Resta);
+        exp = ParseMethodWith(tokens);
+        var location2 = new Location()
+        {
+            Row = token.Row + 1,
+            StartColumn = token.Col,
+            EndColumn = tokens[tokenIndex - 1].Col,
+        };
+        if (exp is null && TokenMatch(tokens, TokenType.Identificador))
+            exp = new Variable(token.Value, location2);
+        if (exp is not null)
+            return new UnaryAritmeticExpression(exp, UnaryType.Negativo);
         return default;
     }
 }

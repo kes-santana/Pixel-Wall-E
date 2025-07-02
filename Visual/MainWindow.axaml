@@ -200,7 +200,6 @@
                                 LineNumbersForeground="White"
                                 IsReadOnly="True"
                                 FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
-                                TextChanged="TextEditor_TextChanged"
                                 Foreground="Snow"
                                 Background="DarkBlue"/>
                 </Border>

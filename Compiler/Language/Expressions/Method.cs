@@ -2,18 +2,21 @@ using Compiler.Interfaces;
 
 namespace Compiler.Language.Expressions;
 
-public class Method<T>(string name, IExpression<object?>[] @params) : IExpression<T>, IInstruction
+public class FunctionMethod(string name, IExpression[] @params, Location location) : IExpression, IInstruction
 {
     public string Name { get; } = name;
-    public IExpression<object?>[] Params { get; } = @params;
+    public IExpression[] Params { get; } = @params;
+    public Location Location { get; } = location;
 
-    public T Excute(Context context)
+    public DinamicType Excute(Context context)
     {
         object?[] values = new object[Params.Length];
         for (int i = 0; i < values.Length; i++)
-            values[i] = Params[i].Excute(context);
-        return (T)context.ContextFunction.CallFunction(Name, values);
+            values[i] = Params[i].Excute(context).dinamicValue;
+        return new DinamicType(context.ContextFunction.CallFunction(Name, values, Location));
     }
 
     void IInstruction.Excute(Context context) => Excute(context);
+
+
 }

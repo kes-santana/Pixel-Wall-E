@@ -2,9 +2,11 @@ using Compiler.Interfaces;
 
 namespace Compiler.Language.Expressions;
 
-public class ConvertExpression<T>(IExpression<T> value) : IExpression<object?>
+public class ConvertExpression<T>(IExpression value,Location location) : IExpression
 {
-    private readonly IExpression<T> value = value;
+    private readonly IExpression value = value;
+    public Location Location { get; } = location;
 
-    public object? Excute(Context context) => value.Excute(context);
+//  De momento no hay que poner condicion para errores
+    public DinamicType Excute(Context context) => value.Excute(context);
 }

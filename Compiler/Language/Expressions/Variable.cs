@@ -2,12 +2,14 @@ using Compiler.Interfaces;
 
 namespace Compiler.Language.Expressions;
 
-public class Variable<T>(string name) : IExpression<T>
+public class Variable(string name, Location location) : IExpression
 {
     public string Name { get; } = name;
-
-    public T Excute(Context context)
+    public Location Location { get; } = location;
+    public DinamicType Excute(Context context)
     {
-        return (T)context.Variables[Name];
+        if (!context.Variables.TryGetValue(Name, out DinamicType? value))
+            throw new InvalidOperationException($"La variable {Name} no existe en el contexto actual. {Location}");
+        return value;
     }
 }

@@ -1,6 +1,8 @@
+using Compiler.Language;
+
 namespace Compiler.Interfaces;
 
-public interface IExpression<T>
+public interface IExpression
 {
-    public T Excute(Context context);
+    public DinamicType Excute(Context context);
 }
